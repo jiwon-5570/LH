@@ -34,3 +34,13 @@ Day 1 구조·정직성 게이트, Day 2 DB/API, Day 3~6 실제 수집·매칭, 
 | 9 API/UI | 완료(v1) | 서울 API, 대시보드, NAVER 회복력 지도, 상세 Dialog |
 | 10 Claude/report | 부분 완료 | 구조화 context와 HTML 진단보고서; PDF 미구현 |
 | 11 QA | 완료(v1) | 신규 포함 11개 테스트, 전체 Ruff, Streamlit AppTest, API/DB 무결성 통과 |
+
+## Ground Truth/DEM 강화 (2026-08-12)
+
+- CI: Linux import 경로 수정 후 GitHub Actions 실검증 대상
+- Ground Truth: SHP/GPKG/GeoJSON/ZIP 수용, CRS 누락 `REVIEW_REQUIRED`, invalid geometry 복구·감사 metadata 구현. 실제 파일은 아직 없음
+- DEM: 4도엽을 한 번 열어 100/300/500m 표고·상대표고·경사·저지대·Coverage Feature 생성
+- Grid: 실제 서울 경계 입력을 받는 100m EPSG:5179 Grid 구조 준비. 경계/침수흔적 미확보로 운영 Grid와 label은 미생성
+- Flood ML: 실제 침수흔적·서울 경계·label 정책 미확보로 `BLOCKED_BY_DATA`
+- Resilience: Historical Exposure 50점 대체 제거, 가용 구성요소 가중치 재정규화
+- Stress Test: 휴리스틱 점수 제거, modified feature만 저장하고 `NOT_READY`

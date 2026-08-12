@@ -137,7 +137,14 @@ def show_resilience_detail(complex_id: str):
     else:
         st.info("계산 가능한 근거가 부족합니다.")
     tabs = st.tabs(["기후·DEM", "시설", "데이터 품질", "Climate stress test"])
-    with tabs[0]: st.json({k: assessments.get(k) for k in ("flood_susceptibility", "dynamic_climate_stress", "climate_vulnerability")})
+    with tabs[0]:
+        terrain = (assessments.get("flood_susceptibility") or {}).get("features", {})
+        terrain_rows = [{"항목":label,"값":terrain.get(key),"단위":unit} for key,label,unit in (
+            ("elevation_m","단지 표고","m"),("mean_elevation_100m","100m 평균표고","m"),("mean_elevation_300m","300m 평균표고","m"),("mean_elevation_500m","500m 평균표고","m"),("relative_elevation_300m","300m 주변 대비 상대표고","m"),("slope_mean_300m","300m 평균 경사","degree"),("lowland_index_300m","300m 저지대 지수","0~100"),("dem_coverage_ratio_100m","DEM Coverage 100m","ratio"),("dem_coverage_ratio_300m","DEM Coverage 300m","ratio"),("dem_coverage_ratio_500m","DEM Coverage 500m","ratio"),("data_version","DEM 데이터 버전","")
+        )]
+        st.dataframe(pd.DataFrame(terrain_rows),hide_index=True,width="stretch")
+        st.caption("저지대 지수 100은 단지 표고가 주변 평균보다 2 표준편차 이상 낮음을 뜻합니다. Coverage 부족 시 미분석 처리합니다.")
+        st.json({k: assessments.get(k) for k in ("dynamic_climate_stress", "climate_vulnerability")})
     with tabs[1]: st.json(assessments.get("facility_vulnerability") or {"status":"INSUFFICIENT"})
     with tabs[2]: st.json(confidence or {"status":"INSUFFICIENT"})
     with tabs[3]:
@@ -148,7 +155,7 @@ def show_resilience_detail(complex_id: str):
         if submitted:
             result, error = post("/api/v1/seoul/stress-test", {"complex_id":complex_id,"rain_change_pct":rain_change,"sewer_change_pct":sewer_change})
             if error: st.error(error)
-            elif result.get("scenario_score") is None: st.warning("관측 또는 기초 분석 데이터가 부족해 시나리오를 계산하지 못했습니다.")
+            elif result.get("scenario_score") is None: st.warning("변경 Feature만 저장했습니다. 검증된 Flood ML이 없어 Scenario Score는 NOT_READY입니다.")
             else: st.metric("Scenario vulnerability index", f"{result['scenario_score']:.1f}점", f"{result['scenario_score']-result['base_score']:+.1f}점")
 
 def kpi_card(column, icon, label, value, unit, foot, colors):

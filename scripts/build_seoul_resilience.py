@@ -20,6 +20,7 @@ from backend.app.db.base import (
     ModelVersion,
     RiskAssessment,
     SeoulComplexProfile,
+    TerrainFeature,
 )
 from backend.app.db.session import SessionLocal, engine
 from backend.app.services.seoul_resilience_service import (
@@ -27,6 +28,7 @@ from backend.app.services.seoul_resilience_service import (
     coordinate_in_seoul_extent,
     is_seoul_address,
     normalize_address,
+    renormalized_vulnerability,
     resilience_grade,
     risk_grade,
 )
@@ -89,7 +91,13 @@ def observation_summary() -> tuple[dict[str, dict], dict[str, dict]]:
         for district, group in frame.dropna(subset=["GU_NM", "time"]).groupby("GU_NM"):
             latest = group["time"].max()
             current = group[group["time"] == latest]
-            rain[str(district)] = {"value": float(current["value"].max() or 0), "time": latest.to_pydatetime(), "station": str(current.iloc[0].get("station_name", ""))}
+            station = str(current.iloc[0].get("station_name", ""))
+            station_rows = group[group["station_name"].astype(str).eq(station)].sort_values("time")
+            totals = {}
+            for minutes in (10,60,180,360,720,1440):
+                window = station_rows[(station_rows["time"] > latest-pd.Timedelta(minutes=minutes)) & (station_rows["time"] <= latest)]
+                totals[minutes] = float(window["value"].sum()) if not window.empty else None
+            rain[str(district)] = {"value": float(current["value"].max() or 0), "time": latest.to_pydatetime(), "station": station, "totals":totals}
     sewer_path = latest_parquet("seoul_sewer_level")
     if sewer_path:
         frame = pd.read_parquet(sewer_path)
@@ -159,7 +167,11 @@ def main() -> None:
             "validation_status": status, "source_name": str(row["source_name"]), "data_version": str(row["data_version"]), "updated_at": NOW,
         })
 
-    elevations = dem_samples(profiles)
+    with SessionLocal() as db:
+        terrain_rows = {row.complex_id:row for row in db.query(TerrainFeature).all()}
+    elevations = {cid:row.elevation_m for cid,row in terrain_rows.items() if row.elevation_m is not None}
+    if not terrain_rows:
+        elevations = dem_samples(profiles)
     rain_by_district, sewer_by_district = observation_summary()
     weights = json.loads((ROOT / "config" / "resilience_weights.json").read_text(encoding="utf-8"))["weights"]
     with SessionLocal() as db:
@@ -171,22 +183,27 @@ def main() -> None:
         for values in profiles:
             cid = values["complex_id"]
             link = links.get(cid)
-            elevation = elevations.get(cid)
-            terrain_score = None if elevation is None else max(0.0, min(100.0, (35 - elevation) / 35 * 100))
-            terrain_quality = "COMPLETE" if elevation is not None else "INSUFFICIENT"
-            add_assessment(db, cid, "flood_susceptibility", terrain_score, "rule_baseline", "static-flood-baseline-v1", {"elevation_m": elevation, "flood_trace_status": "BLOCKED_BY_DATA", "expected_flood_geometry_status": "INSUFFICIENT"}, [{"factor":"elevation_m","label":"DEM 표고 기반 저지대 지수","value":elevation,"contribution_points":terrain_score}], terrain_quality)
+            elevation = elevations.get(cid); terrain = terrain_rows.get(cid)
+            terrain_score = terrain.lowland_index_300m if terrain and terrain.data_quality_status == "COMPLETE" else None
+            terrain_quality = terrain.data_quality_status if terrain else "INSUFFICIENT"
+            terrain_snapshot = {column.name:getattr(terrain,column.name) for column in TerrainFeature.__table__.columns if column.name not in {"terrain_feature_id","complex_id","processed_at"}} if terrain else {"elevation_m":elevation}
+            if terrain:
+                terrain_snapshot["processed_at"] = terrain.processed_at.isoformat()
+            terrain_snapshot.update({"flood_trace_status":"BLOCKED_BY_DATA","expected_flood_geometry_status":"BLOCKED_BY_DATA"})
+            add_assessment(db, cid, "flood_susceptibility", terrain_score, "rule_baseline", "static-terrain-baseline-v2", terrain_snapshot, [{"factor":"lowland_index_300m","label":"300m 주변 대비 저지대 지수","value":terrain_score,"contribution_points":terrain_score}], terrain_quality)
 
             district = values["district"]
             rain = rain_by_district.get(district or "")
             sewer = sewer_by_district.get((district or "").removesuffix("구")) or sewer_by_district.get(district or "")
             rain_age = (NOW - rain["time"]).total_seconds() / 60 if rain else None
             sewer_age = (NOW - sewer["time"]).total_seconds() / 60 if sewer else None
-            rain_factor = min(100.0, (rain["value"] / 30 * 100)) if rain else None
+            rain_factor = min(100.0, (rain["totals"][60] / 30 * 100)) if rain and rain["totals"][60] is not None else None
             sewer_factor = min(100.0, (sewer["value"] / sewer["p95"] * 100)) if sewer and sewer["p95"] > 0 else None
             parts = [x for x in (rain_factor, sewer_factor) if x is not None]
             dynamic_score = sum(parts) / len(parts) if parts else None
             dynamic_quality = "STALE" if parts and ((rain_age or 10**9) > 180 or (sewer_age or 10**9) > 180) else ("PARTIAL" if len(parts) < 2 else "COMPLETE")
-            dynamic_features = {"rain_1h_mm": rain["value"] if rain else None, "rain_3h_mm": None, "rain_6h_mm": None, "rain_24h_mm": None, "rain_station_id": rain["station"] if rain else None, "rain_data_age_minutes": rain_age, "sewer_level_current": sewer["value"] if sewer else None, "nearest_sewer_sensor_id": sewer["sensor"] if sewer else None, "sewer_data_age_minutes": sewer_age, "distance_status": "BLOCKED_BY_DATA"}
+            totals = rain["totals"] if rain else {}
+            dynamic_features = {"rain_10m_mm":totals.get(10),"rain_1h_mm":totals.get(60),"rain_3h_mm":totals.get(180),"rain_6h_mm":totals.get(360),"rain_12h_mm":totals.get(720),"rain_24h_mm":totals.get(1440), "nearest_rain_station_id": rain["station"] if rain else None,"rain_station_distance_m":None, "rain_data_age_minutes": rain_age, "sewer_level_current": sewer["value"] if sewer else None, "nearest_sewer_sensor_id": sewer["sensor"] if sewer else None,"sewer_sensor_distance_m":None, "sewer_data_age_minutes": sewer_age, "distance_status": "BLOCKED_BY_DATA"}
             add_assessment(db, cid, "dynamic_climate_stress", dynamic_score, "rule_baseline", "dynamic-climate-stress-v1", dynamic_features, [{"factor":"rain","label":"최근 강우 관측","value":rain["value"] if rain else None,"contribution_points":rain_factor},{"factor":"sewer","label":"하수관로 수위","value":sewer["value"] if sewer else None,"contribution_points":sewer_factor}], dynamic_quality)
 
             climate_score = None if terrain_score is None and dynamic_score is None else 0.55 * (terrain_score or 0) + 0.45 * (dynamic_score or 0)
@@ -203,23 +220,22 @@ def main() -> None:
                 corrective_rate = None; facility_score = None; facility_quality = "INSUFFICIENT"
             add_assessment(db, cid, "facility_vulnerability", facility_score, "rule_baseline", "facility-vulnerability-baseline-v1", {"elevator_count":elevator_count,"corrective_action_count":corrective_count,"corrective_rate":corrective_rate,"model_status":"NOT_READY"}, [{"factor":"corrective","label":"승강기 시정권고 이력","value":corrective_count,"contribution_points":facility_score}], facility_quality)
 
-            components = {"dem_coverage":100 if elevation is not None else 0,"rain_freshness":100 if rain_age is not None and rain_age <= 180 else 20 if rain else 0,"sewer_freshness":100 if sewer_age is not None and sewer_age <= 180 else 20 if sewer else 0,"flood_history_availability":0,"facility_linkage":100 if elevator_count else 0,"kapt_linkage":100 if values["kapt_code"] else 0,"coordinate_validation":100 if values["validation_status"] == "VALIDATED" else 40 if values["validation_status"] == "ADDRESS_ONLY" else 0}
+            dem_coverage = (terrain.dem_coverage_ratio_100m + terrain.dem_coverage_ratio_300m + terrain.dem_coverage_ratio_500m)/3*100 if terrain else 0
+            components = {"coordinate_validation":100 if values["validation_status"] == "VALIDATED" else 40 if values["validation_status"] == "ADDRESS_ONLY" else 0,"dem_coverage":dem_coverage,"rain_availability":100 if rain else 0,"rain_freshness":100 if rain_age is not None and rain_age <= 180 else 0,"sewer_availability":100 if sewer else 0,"sewer_freshness":100 if sewer_age is not None and sewer_age <= 180 else 0,"flood_history_availability":0,"flood_forecast_geometry_availability":0,"facility_linkage":100 if elevator_count else 0,"kapt_linkage":100 if values["kapt_code"] else 0}
             confidence = sum(components.values()) / len(components)
             add_assessment(db, cid, "data_confidence", confidence, "composite_index", "data-confidence-v1", components, sorted(({"factor":k,"label":k,"value":v,"contribution_points":v/len(components)} for k,v in components.items()), key=lambda x:x["value"]), confidence_level(confidence))
 
-            if climate_score is None and facility_score is None:
-                resilience = None
-            else:
-                unknown_exposure = 50.0
-                vulnerability = (weights["climate_vulnerability"]*(climate_score or 50) + weights["terrain_drainage_vulnerability"]*(terrain_score or 50) + weights["facility_vulnerability"]*(facility_score or 50) + weights["historical_exposure"]*unknown_exposure + weights["data_uncertainty"]*(100-confidence))
-                resilience = 100 - vulnerability
+            component_values = {"climate_vulnerability":climate_score,"terrain_drainage_vulnerability":terrain_score,"facility_vulnerability":facility_score,"historical_exposure":None,"data_uncertainty":100-confidence}
+            vulnerability,effective_weights,missing = renormalized_vulnerability(component_values,weights)
+            available = {key:value for key,value in component_values.items() if value is not None}
+            resilience = None if vulnerability is None else 100-vulnerability
             top = sorted([
                 {"factor":"climate_vulnerability","label":"기후재난 취약성","value":climate_score,"contribution_points":None if climate_score is None else weights["climate_vulnerability"]*climate_score},
                 {"factor":"terrain","label":"지형·배수 취약성","value":terrain_score,"contribution_points":None if terrain_score is None else weights["terrain_drainage_vulnerability"]*terrain_score},
                 {"factor":"facility","label":"시설 취약성","value":facility_score,"contribution_points":None if facility_score is None else weights["facility_vulnerability"]*facility_score},
                 {"factor":"data_uncertainty","label":"데이터 불확실성","value":100-confidence,"contribution_points":weights["data_uncertainty"]*(100-confidence)},
             ], key=lambda x: x["contribution_points"] or -1, reverse=True)
-            add_assessment(db, cid, "resilience", resilience, "composite_index", "resilience-composite-v1", {"climate_vulnerability":climate_score,"terrain_drainage_vulnerability":terrain_score,"facility_vulnerability":facility_score,"historical_exposure":None,"data_confidence":confidence,"weights":weights,"not_a_probability":True}, top, confidence_level(confidence))
+            add_assessment(db, cid, "resilience", resilience, "composite_index", "resilience-composite-v2", {"climate_vulnerability":climate_score,"terrain_drainage_vulnerability":terrain_score,"facility_vulnerability":facility_score,"historical_exposure":None,"data_confidence":confidence,"available_components":list(available),"missing_components":missing,"effective_weights":effective_weights,"not_a_probability":True}, top, confidence_level(confidence))
 
         for model_id, name, target, reason in (
             ("flood-grid-v1", "서울 Grid Flood Susceptibility", "historical_flood_overlap", "행정안전부 침수흔적도 미적재"),

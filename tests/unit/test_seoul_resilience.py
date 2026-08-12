@@ -8,6 +8,7 @@ from backend.app.services.seoul_resilience_service import (
     confidence_level,
     coordinate_in_seoul_extent,
     is_seoul_address,
+    renormalized_vulnerability,
     resilience_grade,
     run_stress_test,
 )
@@ -29,6 +30,16 @@ def test_coordinate_gate_and_score_ranges():
     assert confidence_level(34.9) == "INSUFFICIENT"
 
 
+def test_missing_history_is_not_replaced_with_fifty():
+    values={"climate_vulnerability":20.0,"historical_exposure":None,"data_uncertainty":40.0}
+    weights={"climate_vulnerability":.7,"historical_exposure":.2,"data_uncertainty":.1}
+    score,effective,missing=renormalized_vulnerability(values,weights)
+    assert "historical_exposure" in missing
+    assert round(effective["climate_vulnerability"],3) == .875
+    assert round(effective["data_uncertainty"],3) == .125
+    assert score == 22.5
+
+
 def test_stress_test_persists_actual_feature_changes():
     engine = create_engine("sqlite:///:memory:")
     Base.metadata.create_all(engine)
@@ -42,4 +53,5 @@ def test_stress_test_persists_actual_feature_changes():
         result = run_stress_test(db, "S1", 50, 20)
         assert result.modified_features["rain_1h_mm"] == 15.0
         assert result.modified_features["sewer_level_current"] == 1.2
-        assert result.scenario_score > result.base_score
+        assert result.scenario_score is None
+        assert result.data_quality_status == "NOT_READY"

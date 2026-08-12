@@ -45,6 +45,19 @@
 - Flood ML: `BLOCKED_BY_DATA` — 행정안전부 침수흔적도 원본 미적재
 - Facility ML: `NOT_READY` — 시간순 차기 검사 라벨 학습표와 외부검증 미완료; 규칙 Baseline만 사용
 
+### DEM 공간 Feature v2
+
+실제 NGII DEM 4개 도엽(EPSG:5179, 90m)을 파일별 CRS로 읽어 서울 좌표 검증 단지의 100m/300m/500m 주변 Feature를 `terrain_features`에 저장합니다. NoData(-9999), NaN, inf는 제외하며 도엽 경계에서는 여러 Raster의 유효 픽셀을 합칩니다.
+
+```text
+relative_elevation_R = 단지 표고 - R 반경 평균표고
+lowland_index_R = clamp(-relative_elevation_R / (2 × R 반경 표고 표준편차), 0, 1) × 100
+```
+
+저지대 지수 100은 단지가 주변 평균보다 2 표준편차 이상 낮다는 뜻이며 침수확률이 아닙니다. 유효 픽셀 면적/원형 Buffer 면적으로 DEM Coverage를 계산하고 60% 미만이면 `INSUFFICIENT`로 처리합니다.
+
+Resilience v2는 미확보 Historical Exposure를 50점으로 대체하지 않습니다. 값이 존재하는 구성요소의 원래 가중치 합으로 재정규화하며 `available_components`, `missing_components`, `effective_weights`를 저장합니다. Climate Stress Scenario는 Feature 변화만 저장하고 검증 Flood ML 전에는 `scenario_score=null`, `NOT_READY`입니다.
+
 현재 구현 범위를 넘어선 기능을 완료한 것으로 간주하면 안 됩니다.
 
 ## 3. 데이터 원칙

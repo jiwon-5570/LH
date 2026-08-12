@@ -1,5 +1,17 @@
 # 개발 기록
 
+## 2026-08-12 — CI/Ground Truth/DEM 강화
+
+- CI 문제 원인: GitHub Actions Ubuntu의 `pytest` 실행 파일에서 저장소 루트가 import path에 없어 `backend` 모듈 수집 5건 실패
+- CI 수정: pytest `pythonpath=["."]`, Actions `python -m pytest`, `PYTHONPATH=.` 적용
+- DEM Feature: 실제 Raster CRS 사용, NoData 제외, 4도엽 경계 결합, 100/300/500m 표고·상대표고·경사·저지대·Coverage를 `terrain_features`에 저장
+- 침수흔적도: 실제 파일 미존재. SHP/GPKG/GeoJSON/ZIP 수용, CRS 누락 검토, geometry 복구·격리·서울 bbox 필터 파이프라인 구현
+- Flood ML: 실제 Ground Truth와 서울 행정경계가 없어 `BLOCKED_BY_DATA`; 모델과 성능 미생성
+- 회복력: Historical Exposure 미확보 시 임의 50점 제거, 가용 구성요소 weight 재정규화 및 누락목록 저장
+- Stress Test: 강우 0.7/하수 0.3 휴리스틱 제거. Feature 변화만 저장하고 score는 `None`, 상태는 `NOT_READY`
+- 테스트: DEM buffer/NoData/도엽경계, Grid, invalid geometry, weight 누락, Stress NOT_READY를 포함해 확대
+- 남은 blocker: 행안부 침수흔적도 실제 공간파일, 서울 행정경계 polygon, 관측소·센서 좌표
+
 ## 2026-08-12 — LH-PREDICT RESILIENCE — SEOUL
 
 - 작업: 수정 전 전체 감사, 서울 Master/Profile, 명시적 risk assessment, Data Confidence, Composite Resilience, TOP factors, Climate Stress Test, 서울 API·Streamlit·NAVER popup, Claude context·HTML 보고서 전환

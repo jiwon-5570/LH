@@ -11,6 +11,23 @@
 - 강우와 하수 수위는 기준시각을 보존하며 180분을 넘으면 `STALE`로 표시합니다. 오래된 값을 실시간으로 표시하지 않습니다.
 - DEM NoData는 0m로 대체하지 않습니다. coverage가 없으면 해당 assessment는 `INSUFFICIENT`입니다.
 
+### 행정안전부 침수흔적도 공간파일 투입
+
+```powershell
+.\.venv\Scripts\python.exe -m scripts.ingest_flood_trace "data/incoming/mois_flood_trace/승인파일.zip"
+```
+
+SHP, GeoPackage, GeoJSON, ZIP(SHP 1세트)을 지원합니다. 원본은 `raw`, 압축 해제본은 `staging`, 서울 영역 유효 geometry는 GeoParquet `processed`, 복구 불가 geometry 및 CRS 누락 metadata는 `quarantine`에 저장합니다. CRS를 추정하거나 강제로 덮어쓰지 않습니다. 실제 침수흔적 파일이 없으므로 현재 Geometry·Label·Flood ML은 모두 `BLOCKED_BY_DATA`입니다.
+
+### DEM 공간 Feature 생성
+
+```powershell
+.\.venv\Scripts\python.exe -m scripts.build_terrain_features
+.\.venv\Scripts\python.exe -m scripts.build_seoul_resilience
+```
+
+Raster별 실제 CRS와 NoData를 사용하며 100/300/500m 분석 결과를 `terrain_features`에 저장합니다.
+
 ## 바로 시작하기
 
 1. `.env.example`을 `.env`로 복사하고 API URL과 키를 입력합니다.

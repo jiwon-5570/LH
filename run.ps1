@@ -42,6 +42,7 @@ try {
         Write-Host '      Refreshing Seoul resilience profiles from validated local data...'
         $previousErrorActionPreference = $ErrorActionPreference
         $ErrorActionPreference = 'Continue'
+        & $venvPython -m scripts.build_terrain_features
         & $venvPython -m scripts.build_seoul_resilience
         $profileReady = ($LASTEXITCODE -eq 0)
         $ErrorActionPreference = $previousErrorActionPreference

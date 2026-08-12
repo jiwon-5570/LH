@@ -66,6 +66,15 @@ def confidence_level(score: float) -> str:
     return "INSUFFICIENT"
 
 
+def renormalized_vulnerability(values: dict[str, float | None], weights: dict[str, float]) -> tuple[float | None, dict[str, float], list[str]]:
+    available = {key:value for key,value in values.items() if value is not None and key in weights}
+    missing = [key for key in weights if key not in available]
+    total = sum(weights[key] for key in available)
+    effective = {key:weights[key]/total for key in available} if total else {}
+    score = sum(effective[key]*value for key,value in available.items()) if effective else None
+    return score, effective, missing
+
+
 def latest_assessments(db: Session, complex_id: str) -> dict[str, RiskAssessment]:
     rows = db.scalars(
         select(RiskAssessment)
@@ -135,7 +144,7 @@ def run_stress_test(db: Session, complex_id: str, rain_change_pct: float, sewer_
             run_id=uuid.uuid4().hex, complex_id=complex_id,
             scenario_type=f"rain_{rain_change_pct:+g}_sewer_{sewer_change_pct:+g}",
             base_features={}, modified_features={}, base_score=None, scenario_score=None,
-            method_version="climate-stress-scenario-v1", data_quality_status="INSUFFICIENT", created_at=now,
+            method_version="scenario-feature-only-v2", data_quality_status="NOT_READY", created_at=now,
         )
     else:
         base = dict(dynamic.feature_snapshot or {})
@@ -145,17 +154,12 @@ def run_stress_test(db: Session, complex_id: str, rain_change_pct: float, sewer_
                 modified[key] = round(float(base[key]) * (1 + rain_change_pct / 100), 4)
         if base.get("sewer_level_current") is not None:
             modified["sewer_level_current"] = round(float(base["sewer_level_current"]) * (1 + sewer_change_pct / 100), 4)
-        dynamic_score = float(dynamic.score or 0)
-        stressed_dynamic = min(100.0, dynamic_score * (1 + rain_change_pct / 100 * 0.7 + sewer_change_pct / 100 * 0.3))
-        static = assessments.get("flood_susceptibility")
-        static_score = float(static.score) if static and static.score is not None else 0.0
-        scenario_score = round(0.55 * static_score + 0.45 * stressed_dynamic, 2)
         run = StressTestRun(
             run_id=uuid.uuid4().hex, complex_id=complex_id,
             scenario_type=f"rain_{rain_change_pct:+g}_sewer_{sewer_change_pct:+g}",
             base_features=base, modified_features=modified, base_score=climate.score,
-            scenario_score=scenario_score, method_version="climate-stress-scenario-v1",
-            data_quality_status=climate.data_quality_status, created_at=now,
+            scenario_score=None, method_version="scenario-feature-only-v2",
+            data_quality_status="NOT_READY", created_at=now,
         )
     db.add(run)
     db.commit()
