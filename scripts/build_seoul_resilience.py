@@ -206,9 +206,18 @@ def main() -> None:
             dynamic_features = {"rain_10m_mm":totals.get(10),"rain_1h_mm":totals.get(60),"rain_3h_mm":totals.get(180),"rain_6h_mm":totals.get(360),"rain_12h_mm":totals.get(720),"rain_24h_mm":totals.get(1440), "nearest_rain_station_id": rain["station"] if rain else None,"rain_station_distance_m":None, "rain_data_age_minutes": rain_age, "sewer_level_current": sewer["value"] if sewer else None, "nearest_sewer_sensor_id": sewer["sensor"] if sewer else None,"sewer_sensor_distance_m":None, "sewer_data_age_minutes": sewer_age, "distance_status": "BLOCKED_BY_DATA"}
             add_assessment(db, cid, "dynamic_climate_stress", dynamic_score, "rule_baseline", "dynamic-climate-stress-v1", dynamic_features, [{"factor":"rain","label":"최근 강우 관측","value":rain["value"] if rain else None,"contribution_points":rain_factor},{"factor":"sewer","label":"하수관로 수위","value":sewer["value"] if sewer else None,"contribution_points":sewer_factor}], dynamic_quality)
 
-            climate_score = None if terrain_score is None and dynamic_score is None else 0.55 * (terrain_score or 0) + 0.45 * (dynamic_score or 0)
+            climate_values = {"static_flood_susceptibility":terrain_score,"dynamic_climate_stress":dynamic_score}
+            climate_score,climate_effective_weights,climate_missing = renormalized_vulnerability(
+                climate_values,
+                {"static_flood_susceptibility":0.55,"dynamic_climate_stress":0.45},
+            )
             climate_quality = "INSUFFICIENT" if climate_score is None else ("STALE" if dynamic_quality == "STALE" else "PARTIAL")
-            add_assessment(db, cid, "climate_vulnerability", climate_score, "composite_index", "climate-vulnerability-v1", {"static_flood_susceptibility":terrain_score,"dynamic_climate_stress":dynamic_score}, [{"factor":"static","label":"정적 침수 취약도","value":terrain_score,"contribution_points":None if terrain_score is None else terrain_score*.55},{"factor":"dynamic","label":"동적 기후 스트레스","value":dynamic_score,"contribution_points":None if dynamic_score is None else dynamic_score*.45}], climate_quality)
+            climate_features = climate_values | {
+                "available_components":[key for key,value in climate_values.items() if value is not None],
+                "missing_components":climate_missing,
+                "effective_weights":climate_effective_weights,
+            }
+            add_assessment(db, cid, "climate_vulnerability", climate_score, "composite_index", "climate-vulnerability-v2", climate_features, [{"factor":"static","label":"정적 침수 취약도","value":terrain_score,"contribution_points":None if terrain_score is None else terrain_score*climate_effective_weights.get("static_flood_susceptibility",0)},{"factor":"dynamic","label":"동적 기후 스트레스","value":dynamic_score,"contribution_points":None if dynamic_score is None else dynamic_score*climate_effective_weights.get("dynamic_climate_stress",0)}], climate_quality)
 
             elevator_count = int(link.elevator_count if link else 0)
             corrective_count = int(link.corrective_count if link else 0)

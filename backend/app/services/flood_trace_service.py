@@ -53,6 +53,6 @@ def process_flood_trace(source: Path, raw_dir: Path, staging_dir: Path, processe
     valid.to_parquet(processed_path,index=False)
     if not quarantine.empty:
         quarantine.to_parquet(quarantine_dir / f"{processed_path.stem}_invalid.parquet",index=False)
-    metadata = {"status":"COMPLETE","source_crs":original_crs,"source_features":len(frame),"invalid_before":int(invalid_before.sum()),"repaired":int((invalid_before & ~invalid_after).sum()),"quarantined":int(invalid_after.sum()),"seoul_features":len(valid),"processed_path":str(processed_path),"processed_at":datetime.now(UTC).isoformat()}
+    metadata = {"status":"COMPLETE","source_crs":original_crs,"source_features":len(frame),"invalid_before":int(invalid_before.sum()),"repaired":int((invalid_before & ~invalid_after).sum()),"quarantined":int(invalid_after.sum()),"seoul_features":len(valid),"seoul_filter_method":"coarse_bbox_v1","admin_boundary_status":"BLOCKED_BY_DATA","processed_path":str(processed_path),"processed_at":datetime.now(UTC).isoformat()}
     processed_path.with_suffix(".metadata.json").write_text(json.dumps(metadata,ensure_ascii=False,indent=2),encoding="utf-8")
     return metadata
