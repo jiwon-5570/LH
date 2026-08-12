@@ -1,0 +1,31 @@
+﻿column,dtype,model,description
+complex_id,string,공통,단지 식별자
+observation_time,datetime,침수,기상·수문 관측 기준 시각
+reference_date,date,설비,설비 예측 기준일
+elevation_m,float,침수,단지 대표 고도
+slope_degree,float,침수,단지 주변 평균 경사도
+rain_1h_mm,float,침수,직전/예보 1시간 강수량
+rain_3h_mm,float,침수,누적 3시간 강수량
+rain_24h_mm,float,침수,누적 24시간 강수량
+antecedent_rain_3d_mm,float,침수,선행 3일 강수량
+sewer_level_ratio,float,침수,하수관로 수위/관리기준 수위
+distance_to_stream_m,float,침수,최근접 하천 거리
+impervious_ratio,float,침수,주변 불투수면 비율
+flood_history_count_500m,int,침수,500m 내 과거 침수 횟수
+basement_parking,int,침수,지하주차장 여부 0/1
+households,int,공통,세대수
+building_age_years,float,공통,건축물 연식
+flood_within_6h,int,침수 Target,기준 시각 후 6시간 내 침수 발생 0/1
+equipment_id,string,설비,승강기 등 설비 식별자
+equipment_age_years,float,설비,설비 연식
+inspection_fail_count_3y,int,설비,3년 검사 부적합 수
+conditional_pass_count_3y,int,설비,3년 조건부 합격 수
+corrective_recommendation_count_3y,int,설비,3년 시정권고 수
+months_since_last_inspection,float,설비,최근 검사 후 경과 개월
+maintenance_cost_per_unit,float,설비,설비 1대당 유지비
+maintenance_cost_change_12m,float,설비,유지비 12개월 증감률
+repair_cost_change_12m,float,설비,수선비 12개월 증감률
+households_per_equipment,float,설비,설비 1대당 세대수
+humidity_mean_7d,float,설비,최근 7일 평균 습도
+heavy_rain_days_30d,int,설비,최근 30일 호우일수
+facility_issue_within_30d,int,설비 Target,30일 내 부적합·시정권고·고장대리사건 0/1

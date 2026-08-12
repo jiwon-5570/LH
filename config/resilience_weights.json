@@ -1,0 +1,11 @@
+{
+  "version": "resilience-composite-v1",
+  "description": "운영 의사결정 지원용 복합지수이며 실제 재난 발생확률이 아니다.",
+  "weights": {
+    "climate_vulnerability": 0.35,
+    "terrain_drainage_vulnerability": 0.20,
+    "facility_vulnerability": 0.25,
+    "historical_exposure": 0.10,
+    "data_uncertainty": 0.10
+  }
+}

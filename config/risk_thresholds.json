@@ -1,0 +1,7 @@
+{
+  "version": "risk-thresholds-v1",
+  "risk": {"very_high": 85, "high": 70, "moderate": 45},
+  "resilience": {"vulnerable_max": 39, "caution_max": 59, "normal_max": 74},
+  "data_confidence": {"high": 80, "medium": 60, "low": 35},
+  "freshness_minutes": {"rain_stale": 180, "sewer_stale": 180, "forecast_stale": 720}
+}
