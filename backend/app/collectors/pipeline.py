@@ -78,6 +78,37 @@ def _read_xml_records(content: bytes) -> list[dict]:
     items = root.findall(".//item") or root.findall(".//row")
     return [{child.tag.split("}")[-1]: child.text for child in item} for item in items]
 
+def _response_total_count(payload: Any) -> int | None:
+    """Find a pagination total without depending on one gateway envelope."""
+    queue = [payload]
+    while queue:
+        current = queue.pop(0)
+        if isinstance(current, dict):
+            for key in ("totalCount", "total_count", "list_total_count"):
+                if key in current:
+                    try:
+                        return int(current[key])
+                    except (TypeError, ValueError):
+                        return None
+            queue.extend(value for value in current.values() if isinstance(value, (dict, list)))
+        elif isinstance(current, list):
+            queue.extend(value for value in current if isinstance(value, (dict, list)))
+    return None
+
+def _raise_gateway_error(payload: Any) -> None:
+    """Surface Safety Data/Data.go.kr authentication errors before validation."""
+    text = json.dumps(payload, ensure_ascii=False)
+    error_markers = (
+        "SERVICE_KEY_IS_NOT_REGISTERED_ERROR",
+        "SERVICE_ACCESS_DENIED_ERROR",
+        "DEADLINE_HAS_EXPIRED_ERROR",
+        "UNREGISTERED_IP_ERROR",
+        "NO_SERVICE_KEY_ERROR",
+    )
+    marker = next((item for item in error_markers if item in text), None)
+    if marker:
+        raise RuntimeError(f"재난안전데이터 API 인증 실패: {marker}")
+
 def read_file(path: Path, spec: DatasetSpec):
     suffix = path.suffix.lower().lstrip(".")
     if suffix not in spec.formats:
@@ -176,6 +207,31 @@ def fetch_api(spec: DatasetSpec, max_pages: int = 100) -> tuple[pd.DataFrame, by
     if spec.api_key_env and not key: raise RuntimeError(f"{spec.api_key_env} 미설정")
     if spec.id in {"molit_complex_basic", "kapt_maintenance_cost"}:
         return _fetch_kapt_details(spec, url, key, max_pages)
+    if spec.id == "mois_flood_trace_api":
+        page_size = 1000
+        all_records: list[dict] = []
+        raw_pages: list[dict] = []
+        total_count: int | None = None
+        for page in range(1, max_pages + 1):
+            response = _get_page(url, {
+                "serviceKey":key,
+                "pageNo":page,
+                "numOfRows":page_size,
+                "returnType":"json",
+            })
+            if response.content.lstrip().startswith(b"<"):
+                records = _read_xml_records(response.content)
+                payload: Any = response.text
+            else:
+                payload = response.json()
+                _raise_gateway_error(payload)
+                records = _read_json_records(payload)
+                total_count = total_count if total_count is not None else _response_total_count(payload)
+            raw_pages.append({"page":page,"body":response.text})
+            all_records.extend(records)
+            if not records or len(records) < page_size or (total_count is not None and len(all_records) >= total_count):
+                break
+        return pd.DataFrame(all_records), json.dumps(raw_pages, ensure_ascii=False).encode("utf-8")
     if "api.odcloud.kr" in url:
         def fetch_odcloud_page(page_number: int) -> tuple[int, dict, str]:
             response = _get_page(url, {"page":page_number,"perPage":1000,"serviceKey":key,"returnType":"JSON"})

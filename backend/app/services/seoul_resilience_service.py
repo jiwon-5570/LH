@@ -125,7 +125,7 @@ def profile_payload(profile: SeoulComplexProfile, assessments: dict[str, RiskAss
         "data_version": profile.data_version,
         "updated_at": profile.updated_at,
         "assessments": {kind: assessment(kind) for kind in (
-            "flood_susceptibility", "dynamic_climate_stress", "climate_vulnerability",
+            "flood_susceptibility", "historical_exposure", "drainage_infrastructure_context", "dynamic_climate_stress", "climate_vulnerability",
             "facility_vulnerability", "data_confidence", "resilience"
         )},
     }

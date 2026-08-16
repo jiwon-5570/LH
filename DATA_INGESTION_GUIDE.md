@@ -163,3 +163,9 @@ GET /api/v1/data-sources/{dataset_id}/records
 - 시정권고 데이터 이용범위와 개인정보·비공개 항목 확인
 
 검증 실패 데이터는 수정해 정상 데이터로 위장하지 않습니다. 원인을 확인한 뒤 별도 정제 규칙을 코드와 문서에 남기고 다시 수집합니다.
+
+## 서울 수문 7종 재수집 규약
+
+원본은 `data/incoming/<dataset_id>/`에 두고 `incoming → raw → staging → processed → quarantine` 단계를 사용합니다. 공간 분석은 EPSG:5179, 지도 출력은 EPSG:4326을 사용합니다. 강우 시각은 Asia/Seoul로 해석한 뒤 UTC timezone-aware 값으로 저장합니다. 원본은 수정하지 않고 `source_file`, `data_version`, `processed_at`, `validation_status`를 보존합니다.
+
+`python scripts/build_seoul_hydrology.py`는 침수흔적을 표준화·중복 제거하고 단지별 통합 Feature를 재생성합니다. 미확보 데이터셋은 수집 실행 기록에 `blocked_by_data`로 남습니다.

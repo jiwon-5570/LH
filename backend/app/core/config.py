@@ -17,6 +17,7 @@ class Settings(BaseSettings):
     seoul_rainfall_api_key: str = ""
     seoul_sewer_level_api_key: str = ""
     seoul_flood_forecast_map_api_key: str = ""
+    mois_flood_trace_api_key: str = ""
     raw_data_dir: Path = Path("data/raw")
     staging_data_dir: Path = Path("data/staging")
     processed_data_dir: Path = Path("data/processed")

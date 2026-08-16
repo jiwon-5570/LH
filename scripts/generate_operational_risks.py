@@ -11,6 +11,8 @@ import pandas as pd
 import rasterio
 from pyproj import Transformer
 
+from backend.app.services.rainfall_history_service import empirical_rain_index
+
 ROOT = Path(__file__).resolve().parents[1]
 MODEL_VERSION = "operational-screening-v1"
 
@@ -44,12 +46,17 @@ def environmental_factors() -> tuple[float, float, dict]:
     rain_paths = list((ROOT / "data" / "processed" / "seoul_rainfall").glob("*.parquet"))
     sewer_paths = list((ROOT / "data" / "processed" / "seoul_sewer_level").glob("*.parquet"))
     rain_factor = sewer_factor = 0.0; metadata = {}
+    rain_reference_paths = list((ROOT / "data/processed/seoul_rainfall_history").glob("*/rainfall_reference.json"))
+    rain_reference_payload = json.loads(max(rain_reference_paths,key=lambda path:path.stat().st_mtime).read_text(encoding="utf-8")) if rain_reference_paths else None
+    rain_10m_reference = None if rain_reference_payload is None else rain_reference_payload.get("references",{}).get("10m")
     if rain_paths:
         rain = pd.read_parquet(max(rain_paths, key=lambda p:p.stat().st_size), columns=["observed_at", "rainfall_mm"])
         rain["rainfall_mm"] = pd.to_numeric(rain["rainfall_mm"], errors="coerce")
         latest = rain["observed_at"].max(); current = rain[rain["observed_at"] == latest]["rainfall_mm"]
         rainfall = float(current.max()) if not current.empty and current.notna().any() else 0.0
-        rain_factor = min(max(rainfall / 30.0, 0.0), 1.0); metadata.update({"rain_observed_at":str(latest),"rainfall_mm":rainfall})
+        empirical = empirical_rain_index(rainfall, rain_10m_reference)
+        rain_factor = 0.0 if empirical is None else empirical / 100
+        metadata.update({"rain_observed_at":str(latest),"rainfall_mm":rainfall,"rain_empirical_index":empirical,"rain_reference":rain_10m_reference,"rain_reference_years":None if rain_reference_payload is None else rain_reference_payload.get("source_years"),"rain_reference_data_version":None if rain_reference_payload is None else rain_reference_payload.get("data_version")})
     if sewer_paths:
         sewer = pd.read_parquet(max(sewer_paths, key=lambda p:p.stat().st_size), columns=["observed_at", "water_level"])
         sewer["water_level"] = pd.to_numeric(sewer["water_level"], errors="coerce")

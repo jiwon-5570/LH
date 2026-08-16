@@ -56,3 +56,12 @@
 - Streamlit 무데이터/장애 상태 UI 추가
 - Docker Compose, CI, 단위 테스트 추가
 - 제한: 실제 공공데이터/API 키 및 기관 승인 미제공, 모델 미학습, AI/보고서 도구 미구현
+
+## 2026-08-17 — Seoul flood and hydrology integration
+
+- 실제 원본 탐색 후 침수흔적 5개 연도 파일을 통합하고 65개 중복을 제거했다.
+- 빗물펌프장 최근접 거리와 500m/1km/2km 개수 Feature를 추가했다.
+- 7개 데이터셋 가용성을 `flood_spatial_features`에 명시적으로 기록했다.
+- 실제 원본이 없는 4종은 `BLOCKED_BY_DATA`로 유지했다.
+- 상세 FastAPI 6개와 Streamlit 통합 수문 Feature 탭을 연결했다.
+- Flood ML은 필수 검증 조건 미충족으로 학습하지 않았다.

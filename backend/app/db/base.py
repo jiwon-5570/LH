@@ -231,3 +231,102 @@ class TerrainFeature(Base):
     data_version: Mapped[str] = mapped_column(String(100))
     processed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     data_quality_status: Mapped[str] = mapped_column(String(40), index=True)
+
+
+class HistoricalFloodFeature(Base):
+    __tablename__ = "historical_flood_features"
+    historical_flood_feature_id: Mapped[str] = mapped_column(String(100), primary_key=True)
+    complex_id: Mapped[str] = mapped_column(ForeignKey("complexes.complex_id"), unique=True, index=True)
+    nearest_trace_distance_m: Mapped[float | None] = mapped_column(Float)
+    intersects_trace: Mapped[bool] = mapped_column(Boolean, default=False)
+    overlap_ratio_100m: Mapped[float] = mapped_column(Float, default=0)
+    overlap_ratio_300m: Mapped[float] = mapped_column(Float, default=0)
+    overlap_ratio_500m: Mapped[float] = mapped_column(Float, default=0)
+    hit_years_point: Mapped[list] = mapped_column(JSON, default=list)
+    hit_years_100m: Mapped[list] = mapped_column(JSON, default=list)
+    hit_years_300m: Mapped[list] = mapped_column(JSON, default=list)
+    hit_years_500m: Mapped[list] = mapped_column(JSON, default=list)
+    source_years: Mapped[list] = mapped_column(JSON, default=list)
+    missing_years: Mapped[list] = mapped_column(JSON, default=list)
+    source_feature_count: Mapped[int] = mapped_column(Integer)
+    data_version: Mapped[str] = mapped_column(String(100))
+    processed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    data_quality_status: Mapped[str] = mapped_column(String(40), index=True)
+
+
+class RainPumpProximityFeature(Base):
+    __tablename__ = "rain_pump_proximity_features"
+    rain_pump_proximity_feature_id: Mapped[str] = mapped_column(String(100), primary_key=True)
+    complex_id: Mapped[str] = mapped_column(ForeignKey("complexes.complex_id"), unique=True, index=True)
+    nearest_pump_id: Mapped[str | None] = mapped_column(String(100))
+    nearest_pump_name: Mapped[str | None] = mapped_column(String(200))
+    nearest_pump_distance_m: Mapped[float | None] = mapped_column(Float)
+    pump_count_1km: Mapped[int] = mapped_column(Integer, default=0)
+    pump_count_3km: Mapped[int] = mapped_column(Integer, default=0)
+    pump_count_5km: Mapped[int] = mapped_column(Integer, default=0)
+    source_feature_count: Mapped[int] = mapped_column(Integer)
+    capacity_status: Mapped[str] = mapped_column(String(40))
+    operation_status: Mapped[str] = mapped_column(String(40))
+    data_version: Mapped[str] = mapped_column(String(100))
+    processed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    data_quality_status: Mapped[str] = mapped_column(String(40), index=True)
+
+
+class RainfallHistoricalStatistic(Base):
+    __tablename__ = "rainfall_historical_statistics"
+    rainfall_historical_statistic_id: Mapped[str] = mapped_column(String(100), primary_key=True)
+    station_id: Mapped[str] = mapped_column(String(100), index=True)
+    station_name: Mapped[str] = mapped_column(String(200), index=True)
+    source_year: Mapped[int] = mapped_column(Integer, index=True)
+    observed_from: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    observed_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    record_count: Mapped[int] = mapped_column(Integer)
+    duplicate_count: Mapped[int] = mapped_column(Integer)
+    invalid_count: Mapped[int] = mapped_column(Integer)
+    completeness_ratio: Mapped[float] = mapped_column(Float)
+    rainfall_total_mm: Mapped[float] = mapped_column(Float)
+    max_10m_mm: Mapped[float] = mapped_column(Float)
+    max_1h_mm: Mapped[float | None] = mapped_column(Float)
+    max_3h_mm: Mapped[float | None] = mapped_column(Float)
+    max_24h_mm: Mapped[float | None] = mapped_column(Float)
+    data_version: Mapped[str] = mapped_column(String(100))
+    processed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    data_quality_status: Mapped[str] = mapped_column(String(40), index=True)
+
+
+class FloodSpatialFeature(Base):
+    """Operational, compact Seoul hydrology feature snapshot per LH complex.
+
+    Large geometries and observations remain in GeoParquet/Parquet.  This table
+    only stores values required by the API and dashboard.
+    """
+
+    __tablename__ = "flood_spatial_features"
+    complex_id: Mapped[str] = mapped_column(ForeignKey("complexes.complex_id"), primary_key=True)
+    historical_flood_overlap: Mapped[bool | None] = mapped_column(Boolean)
+    historical_flood_count_100m: Mapped[int | None] = mapped_column(Integer)
+    historical_flood_count_300m: Mapped[int | None] = mapped_column(Integer)
+    historical_flood_count_500m: Mapped[int | None] = mapped_column(Integer)
+    historical_flood_area_ratio_100m: Mapped[float | None] = mapped_column(Float)
+    historical_flood_area_ratio_300m: Mapped[float | None] = mapped_column(Float)
+    historical_flood_area_ratio_500m: Mapped[float | None] = mapped_column(Float)
+    last_flood_year: Mapped[int | None] = mapped_column(Integer)
+    expected_flood_overlap: Mapped[bool | None] = mapped_column(Boolean)
+    expected_flood_area_ratio_100m: Mapped[float | None] = mapped_column(Float)
+    expected_flood_area_ratio_300m: Mapped[float | None] = mapped_column(Float)
+    expected_flood_area_ratio_500m: Mapped[float | None] = mapped_column(Float)
+    expected_flood_max_stage: Mapped[float | None] = mapped_column(Float)
+    distance_to_nearest_pump_station_m: Mapped[float | None] = mapped_column(Float)
+    pump_station_count_500m: Mapped[int | None] = mapped_column(Integer)
+    pump_station_count_1km: Mapped[int | None] = mapped_column(Integer)
+    pump_station_count_2km: Mapped[int | None] = mapped_column(Integer)
+    nearby_total_pump_capacity_1km: Mapped[float | None] = mapped_column(Float)
+    nearest_rain_station_id: Mapped[str | None] = mapped_column(String(100))
+    rain_station_distance_m: Mapped[float | None] = mapped_column(Float)
+    nearest_river_station_id: Mapped[str | None] = mapped_column(String(100))
+    river_station_distance_m: Mapped[float | None] = mapped_column(Float)
+    dataset_statuses: Mapped[dict] = mapped_column(JSON, default=dict)
+    source_metadata: Mapped[dict] = mapped_column(JSON, default=dict)
+    data_version: Mapped[str] = mapped_column(String(100))
+    processed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    data_quality_status: Mapped[str] = mapped_column(String(40), index=True)

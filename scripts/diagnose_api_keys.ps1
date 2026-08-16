@@ -119,6 +119,21 @@ foreach ($entry in $seoulCalls) {
   }
 }
 
+# 재난안전데이터공유플랫폼 침수흔적도 전용 키
+if ([string]::IsNullOrWhiteSpace($envs.MOIS_FLOOD_TRACE_API_KEY)) {
+  Add-Result '행안부 침수흔적도 API' 'SKIP' 'MOIS_FLOOD_TRACE_API_KEY 미입력'
+} else {
+  $moisKey = [uri]::EscapeDataString($envs.MOIS_FLOOD_TRACE_API_KEY)
+  $moisUri = "$($envs.MOIS_FLOOD_TRACE_API_URL)?serviceKey=$moisKey&pageNo=1&numOfRows=1&returnType=json"
+  $moisCall = Invoke-SafeJson '행안부 침수흔적도 API' $moisUri
+  if ($moisCall.Ok) {
+    $serialized = $moisCall.Json | ConvertTo-Json -Depth 20 -Compress
+    $authError = @('SERVICE_KEY_IS_NOT_REGISTERED_ERROR','SERVICE_ACCESS_DENIED_ERROR','DEADLINE_HAS_EXPIRED_ERROR','UNREGISTERED_IP_ERROR','NO_SERVICE_KEY_ERROR') | Where-Object { $serialized -like "*$_*" } | Select-Object -First 1
+    if ($authError) { Add-Result '행안부 침수흔적도 API' 'FAIL' "API_ERROR $authError" $moisCall.Http }
+    else { Add-Result '행안부 침수흔적도 API' 'PASS' 'AUTH_OK (SN/FLDN_DOWA 속성 API)' $moisCall.Http }
+  }
+}
+
 # NAVER Maps JS: 등록된 localhost referer로 SDK 인증 확인
 $naverUri = "https://oapi.map.naver.com/openapi/v3/maps.js?ncpKeyId=$($envs.NAVER_MAP_CLIENT_ID)"
 try {

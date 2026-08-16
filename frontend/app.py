@@ -120,6 +120,9 @@ def show_resilience_detail(complex_id: str):
         st.error(f"상세 분석을 불러오지 못했습니다: {detail_error}")
         return
     assessments = detail.get("assessments", {})
+    flood_features, flood_feature_error = get(
+        f"/api/v1/seoul/complexes/{complex_id}/flood-features"
+    )
     resilience = assessments.get("resilience") or {}
     confidence = assessments.get("data_confidence") or {}
     st.subheader(detail["complex_name"])
@@ -136,7 +139,7 @@ def show_resilience_detail(complex_id: str):
         st.dataframe(pd.DataFrame(factors), hide_index=True, width="stretch")
     else:
         st.info("계산 가능한 근거가 부족합니다.")
-    tabs = st.tabs(["기후·DEM", "시설", "데이터 품질", "Climate stress test"])
+    tabs = st.tabs(["기후·DEM", "공식 침수이력", "배수 인프라", "시설", "데이터 품질", "Climate stress test", "통합 수문 Feature"])
     with tabs[0]:
         terrain = (assessments.get("flood_susceptibility") or {}).get("features", {})
         terrain_rows = [{"항목":label,"값":terrain.get(key),"단위":unit} for key,label,unit in (
@@ -145,9 +148,53 @@ def show_resilience_detail(complex_id: str):
         st.dataframe(pd.DataFrame(terrain_rows),hide_index=True,width="stretch")
         st.caption("저지대 지수 100은 단지 표고가 주변 평균보다 2 표준편차 이상 낮음을 뜻합니다. Coverage 부족 시 미분석 처리합니다.")
         st.json({k: assessments.get(k) for k in ("dynamic_climate_stress", "climate_vulnerability")})
-    with tabs[1]: st.json(assessments.get("facility_vulnerability") or {"status":"INSUFFICIENT"})
-    with tabs[2]: st.json(confidence or {"status":"INSUFFICIENT"})
-    with tabs[3]:
+    with tabs[1]:
+        history = assessments.get("historical_exposure") or {}
+        features = history.get("features", {})
+        if not history or history.get("score") is None:
+            st.info("적재·좌표 검증된 공식 침수흔적 근거가 없습니다.")
+        else:
+            st.caption("공식 침수흔적도와 단지 좌표의 공간 관계입니다. 이 지수는 침수 발생확률이 아닙니다.")
+            cols = st.columns(4)
+            cols[0].metric("이력 근접지수", f"{history['score']:.1f}점", border=True)
+            distance = features.get("nearest_trace_distance_m")
+            cols[1].metric("최근접 흔적", "500m 초과" if distance is None else f"{distance:,.1f}m", border=True)
+            cols[2].metric("100m 겹침", f"{features.get('overlap_ratio_100m', 0) * 100:.2f}%", border=True)
+            cols[3].metric("점 위치 겹침", "있음" if features.get("intersects_trace") else "없음", border=True)
+            st.json({
+                "단지점 겹침 연도":features.get("hit_years_point", []),
+                "100m 이내 연도":features.get("hit_years_100m", []),
+                "300m 이내 연도":features.get("hit_years_300m", []),
+                "500m 이내 연도":features.get("hit_years_500m", []),
+                "제공 연도":features.get("source_years", []),
+                "누락 연도":features.get("missing_years", []),
+                "원본 도형 수":features.get("source_feature_count"),
+                "데이터 품질":history.get("data_quality_status"),
+            })
+    with tabs[2]:
+        pump = assessments.get("drainage_infrastructure_context") or {}
+        features = pump.get("features", {})
+        if not features:
+            st.info("좌표 검증된 빗물펌프장 공간 근거가 없습니다.")
+        else:
+            st.caption("시설 접근성 정보이며 펌프 용량, 가동상태 또는 침수 방어성능을 의미하지 않습니다.")
+            cols = st.columns(4)
+            cols[0].metric("최근접 펌프장", features.get("nearest_pump_name") or "미확인", border=True)
+            distance = features.get("nearest_pump_distance_m")
+            cols[1].metric("최근접 거리", "미확인" if distance is None else f"{distance:,.0f}m", border=True)
+            cols[2].metric("1km 이내", f"{features.get('pump_count_1km', 0)}개", border=True)
+            cols[3].metric("3km 이내", f"{features.get('pump_count_3km', 0)}개", border=True)
+            st.json({
+                "5km 이내 펌프장":features.get("pump_count_5km", 0),
+                "펌프 용량":features.get("capacity_status"),
+                "가동 상태":features.get("operation_status"),
+                "전체 원본 시설":features.get("source_feature_count"),
+                "데이터 품질":pump.get("data_quality_status"),
+                "데이터 버전":features.get("data_version"),
+            })
+    with tabs[3]: st.json(assessments.get("facility_vulnerability") or {"status":"INSUFFICIENT"})
+    with tabs[4]: st.json(confidence or {"status":"INSUFFICIENT"})
+    with tabs[5]:
         with st.form(f"stress_{complex_id}"):
             rain_change = st.select_slider("강우 변화", options=[0, 10, 30, 50], value=30, format_func=lambda x:f"+{x}%")
             sewer_change = st.select_slider("하수 수위 변화", options=[0, 10, 20, 30], value=20, format_func=lambda x:f"+{x}%")
@@ -157,6 +204,36 @@ def show_resilience_detail(complex_id: str):
             if error: st.error(error)
             elif result.get("scenario_score") is None: st.warning("변경 Feature만 저장했습니다. 검증된 Flood ML이 없어 Scenario Score는 NOT_READY입니다.")
             else: st.metric("Scenario vulnerability index", f"{result['scenario_score']:.1f}점", f"{result['scenario_score']-result['base_score']:+.1f}점")
+    with tabs[6]:
+        if flood_feature_error or not flood_features:
+            st.info("통합 수문 Feature가 아직 생성되지 않았습니다. build_seoul_hydrology.py를 실행하세요.")
+        else:
+            statuses = flood_features.get("dataset_statuses", {})
+            st.caption("실제 적재 데이터만 표시합니다. 미확보 데이터는 BLOCKED_BY_DATA로 유지됩니다.")
+            st.dataframe(
+                pd.DataFrame(
+                    [{"데이터셋": key, "상태": value} for key, value in statuses.items()]
+                ),
+                hide_index=True,
+                width="stretch",
+            )
+            st.json({
+                "과거 침수": {
+                    "100m 건수": flood_features.get("historical_flood_count_100m"),
+                    "300m 건수": flood_features.get("historical_flood_count_300m"),
+                    "500m 건수": flood_features.get("historical_flood_count_500m"),
+                    "최근 연도": flood_features.get("last_flood_year"),
+                },
+                "배수 시설": {
+                    "최근접 거리(m)": flood_features.get("distance_to_nearest_pump_station_m"),
+                    "500m 개수": flood_features.get("pump_station_count_500m"),
+                    "1km 개수": flood_features.get("pump_station_count_1km"),
+                    "2km 개수": flood_features.get("pump_station_count_2km"),
+                    "1km 총 용량": flood_features.get("nearby_total_pump_capacity_1km"),
+                },
+                "처리 시각": flood_features.get("processed_at"),
+                "데이터 버전": flood_features.get("data_version"),
+            })
 
 def kpi_card(column, icon, label, value, unit, foot, colors):
     bg, fg = colors

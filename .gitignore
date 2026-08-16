@@ -12,7 +12,12 @@ artifacts/reports/*
 artifacts/backups/*
 artifacts/*.log
 artifacts/*.err
+artifacts/pytest_*/
+data/test_tmp_*/
 data/incoming/*
+!data/incoming/*/
+data/incoming/*/*
+!data/incoming/*/.gitkeep
 data/raw/*
 data/staging/*
 data/processed/*

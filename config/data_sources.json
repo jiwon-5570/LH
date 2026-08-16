@@ -1,21 +1,877 @@
 {
   "schema_version": 1,
-  "defaults": {"timeout_seconds": 30, "max_retries": 4, "page_size": 1000},
+  "defaults": {
+    "timeout_seconds": 30,
+    "max_retries": 4,
+    "page_size": 1000
+  },
   "datasets": [
-    {"id":"lh_complexes","name":"한국토지주택공사_전국 LH 아파트 단지정보","mode":"file_or_api","formats":["csv","xlsx","json"],"api_url_env":"LH_COMPLEX_API_URL","api_key_env":"DATA_GO_KR_SERVICE_KEY","domain":"complex","required":["complex_id","complex_name","address"],"aliases":{"complex_id":["complex_id","단지코드","단지 식별자","단지ID"],"complex_name":["complex_name","단지명","단지 명"],"address":["address","도로명주소","주소"],"latitude":["latitude","위도","lat"],"longitude":["longitude","경도","lon","lng"]}},
-    {"id":"molit_complex_list","name":"국토교통부_공동주택 단지 목록제공 서비스","mode":"api","formats":["json","xml"],"api_url_env":"MOLIT_COMPLEX_LIST_API_URL","api_key_env":"DATA_GO_KR_SERVICE_KEY","domain":"complex","required":["kapt_code","complex_name"],"aliases":{"kapt_code":["kapt_code","kaptCode","단지코드"],"complex_name":["complex_name","kaptName","단지명"],"address":["address","doroJuso","도로명주소"]}},
-    {"id":"molit_complex_basic","name":"국토교통부_공동주택 기본 정보제공 서비스","mode":"api","formats":["json","xml"],"api_url_env":"MOLIT_COMPLEX_BASIC_API_URL","api_key_env":"DATA_GO_KR_SERVICE_KEY","domain":"complex_detail","required":["kapt_code"],"aliases":{"kapt_code":["kapt_code","kaptCode","단지코드"],"households":["households","kaptdaCnt","세대수"],"building_count":["building_count","kaptDongCnt","동수"],"approval_date":["approval_date","kaptUsedate","사용승인일"]}},
-    {"id":"kapt_maintenance_cost","name":"국토교통부_공동주택관리비(공용관리비)정보제공서비스","mode":"api","formats":["json","xml"],"api_url_env":"KAPT_MAINTENANCE_COST_API_URL","api_key_env":"DATA_GO_KR_SERVICE_KEY","domain":"maintenance","required":["kapt_code","billing_month"],"aliases":{"kapt_code":["kapt_code","kaptCode","단지코드"],"billing_month":["billing_month","searchDate","부과년월"],"elevator_cost":["elevator_cost","elevCost","승강기유지비"],"repair_cost":["repair_cost","수선비"]}},
-    {"id":"kma_vilage_forecast","name":"기상청_단기예보 조회서비스","mode":"api","formats":["json","xml"],"api_url_env":"KMA_VILAGE_FORECAST_API_URL","api_key_env":"KMA_SERVICE_KEY","domain":"weather_forecast","required":["base_date","base_time","forecast_date","forecast_time","category"],"aliases":{"base_date":["base_date","baseDate"],"base_time":["base_time","baseTime"],"forecast_date":["forecast_date","fcstDate"],"forecast_time":["forecast_time","fcstTime"],"category":["category"],"value":["value","fcstValue"],"grid_x":["grid_x","nx"],"grid_y":["grid_y","ny"]}},
-    {"id":"kma_asos_hourly","name":"기상청_지상(종관, ASOS) 시간자료 조회서비스","mode":"api","formats":["json","xml","csv"],"api_url_env":"KMA_ASOS_HOURLY_API_URL","api_key_env":"KMA_SERVICE_KEY","domain":"weather_observation","required":["station_id","observed_at"],"aliases":{"station_id":["station_id","stnId","지점"],"observed_at":["observed_at","tm","일시"],"temperature_c":["temperature_c","ta","기온"],"rainfall_mm":["rainfall_mm","rn","강수량"],"humidity_pct":["humidity_pct","hm","습도"]}},
-    {"id":"seoul_rainfall","name":"서울특별시_강우량 정보","mode":"api","formats":["json","xml","csv"],"api_url_env":"SEOUL_RAINFALL_API_URL","api_key_env":"SEOUL_RAINFALL_API_KEY","domain":"rainfall","required":["station_id","observed_at","rainfall_mm"],"aliases":{"station_id":["station_id","RF_CD","RAINGAUGE_CODE","관측소코드"],"station_name":["station_name","RF_NM","RAINGAUGE_NAME","관측소명"],"observed_at":["observed_at","DATA_CLCT_TM","RECEIVE_TIME","수신시간"],"rainfall_mm":["rainfall_mm","RN_10M","RAINFALL10","강우량"]}},
-    {"id":"seoul_sewer_level","name":"서울특별시_하수관로 수위 현황","mode":"api","formats":["json","xml","csv"],"api_url_env":"SEOUL_SEWER_LEVEL_API_URL","api_key_env":"SEOUL_SEWER_LEVEL_API_KEY","domain":"sewer_level","required":["sensor_id","observed_at","water_level"],"aliases":{"sensor_id":["sensor_id","UNQ_NO","IDN","측정소ID"],"observed_at":["observed_at","MSRMT_YMD","MEA_YMD","측정일시"],"water_level":["water_level","MSRMT_WATL","MEA_WAL","수위"],"latitude":["latitude","LAT","위도"],"longitude":["longitude","LON","경도"]}},
-    {"id":"mois_flood_trace","name":"행정안전부_침수흔적도","mode":"file_or_api","formats":["shp","gpkg","geojson","zip"],"api_url_env":"MOIS_FLOOD_TRACE_API_URL","api_key_env":"DATA_GO_KR_SERVICE_KEY","domain":"flood_history","required":["geometry"],"aliases":{"event_date":["event_date","침수일자","발생일"],"depth_cm":["depth_cm","침수심","침수깊이"],"geometry":["geometry"]}},
-    {"id":"seoul_flood_forecast_map","name":"서울특별시_풍수해 침수예상도 공간정보","mode":"file_or_api","formats":["shp","gpkg","geojson","zip","json","xml"],"api_url_env":"SEOUL_FLOOD_FORECAST_MAP_API_URL","api_key_env":"SEOUL_FLOOD_FORECAST_MAP_API_KEY","domain":"flood_forecast_area","required":["space_id","flood_stage"],"aliases":{"space_id":["space_id","SPACE_id","공간ID"],"sequence":["sequence","SN","순번"],"flood_stage":["flood_stage","FLDG_STG","침수단계"],"geometry":["geometry"]}},
-    {"id":"ngii_dem","name":"국토교통부 국토지리정보원_DEM","mode":"file","formats":["tif","tiff","img","zip"],"domain":"terrain","required":[],"aliases":{}},
-    {"id":"elevator_installations","name":"한국승강기안전공단_승강기 설치 현황_20251231","mode":"file","formats":["csv","xlsx"],"domain":"elevator","required":["elevator_id","address"],"aliases":{"elevator_id":["elevator_id","승강기번호","승강기고유번호"],"address":["address","건물주소","설치주소","소재지"],"building_name":["building_name","건물명"],"region":["region","시도"],"district":["district","시군구"],"installation_date":["installation_date","설치일자"],"first_installation_date":["first_installation_date","최초설치일자"],"manufacturer":["manufacturer","제조업체"],"maintenance_company":["maintenance_company","유지관리업체"],"rated_load_kg":["rated_load_kg","적재하중","정격하중"],"rated_speed":["rated_speed","정격속도"],"capacity_persons":["capacity_persons","최대정원"],"equipment_type":["equipment_type","승강기종류"],"equipment_status":["equipment_status","승강기상태"],"inspection_expiry_date":["inspection_expiry_date","검사유효만료일자"],"inspection_history_code":["inspection_history_code","검사결과이력조회코드"]}},
-    {"id":"elevator_building_coordinates","name":"한국승강기안전공단_승강기 설치 건물 좌표 목록","mode":"file_or_api","formats":["csv","xlsx","json"],"api_url_env":"ELEVATOR_BUILDING_COORD_API_URL","api_key_env":"DATA_GO_KR_SERVICE_KEY","domain":"elevator_location","required":["address","latitude","longitude"],"aliases":{"building_name":["building_name","건물명"],"latitude":["latitude","위도","lat"],"longitude":["longitude","경도","lon","lng"],"address":["address","건물주소","주소","도로명주소"]}},
-    {"id":"elevator_inspections","name":"한국승강기안전공단_승강기 검사 결과","mode":"file_or_api","formats":["csv","xlsx","json"],"api_url_env":"ELEVATOR_INSPECTION_API_URL","api_key_env":"DATA_GO_KR_SERVICE_KEY","domain":"elevator_inspection","required":["inspection_history_code","inspection_date","inspection_result"],"aliases":{"inspection_history_code":["inspection_history_code","검사결과이력조회코드"],"inspection_date":["inspection_date","검사일자"],"inspection_result":["inspection_result","검사결과"],"inspection_type":["inspection_type","검사종류"]}},
-    {"id":"elevator_corrective_actions","name":"승강기 안전검사 시정권고 내역","mode":"file_or_api","formats":["csv","xlsx","json"],"api_url_env":"ELEVATOR_CORRECTIVE_ACTION_API_URL","api_key_env":"DATA_GO_KR_SERVICE_KEY","domain":"elevator_corrective_action","required":["elevator_id","recommendation_date"],"aliases":{"elevator_id":["elevator_id","승강기번호","승강기고유번호"],"recommendation_date":["recommendation_date","검사일자","시정권고일자"],"recommendation_text":["recommendation_text","시정권고내용","권고내용"],"completion_date":["completion_date","조치완료일"]}}
+    {
+      "id": "lh_complexes",
+      "name": "\ud55c\uad6d\ud1a0\uc9c0\uc8fc\ud0dd\uacf5\uc0ac_\uc804\uad6d LH \uc544\ud30c\ud2b8 \ub2e8\uc9c0\uc815\ubcf4",
+      "mode": "file_or_api",
+      "formats": [
+        "csv",
+        "xlsx",
+        "json"
+      ],
+      "api_url_env": "LH_COMPLEX_API_URL",
+      "api_key_env": "DATA_GO_KR_SERVICE_KEY",
+      "domain": "complex",
+      "required": [
+        "complex_id",
+        "complex_name",
+        "address"
+      ],
+      "aliases": {
+        "complex_id": [
+          "complex_id",
+          "\ub2e8\uc9c0\ucf54\ub4dc",
+          "\ub2e8\uc9c0 \uc2dd\ubcc4\uc790",
+          "\ub2e8\uc9c0ID"
+        ],
+        "complex_name": [
+          "complex_name",
+          "\ub2e8\uc9c0\uba85",
+          "\ub2e8\uc9c0 \uba85"
+        ],
+        "address": [
+          "address",
+          "\ub3c4\ub85c\uba85\uc8fc\uc18c",
+          "\uc8fc\uc18c"
+        ],
+        "latitude": [
+          "latitude",
+          "\uc704\ub3c4",
+          "lat"
+        ],
+        "longitude": [
+          "longitude",
+          "\uacbd\ub3c4",
+          "lon",
+          "lng"
+        ]
+      }
+    },
+    {
+      "id": "molit_complex_list",
+      "name": "\uad6d\ud1a0\uad50\ud1b5\ubd80_\uacf5\ub3d9\uc8fc\ud0dd \ub2e8\uc9c0 \ubaa9\ub85d\uc81c\uacf5 \uc11c\ube44\uc2a4",
+      "mode": "api",
+      "formats": [
+        "json",
+        "xml"
+      ],
+      "api_url_env": "MOLIT_COMPLEX_LIST_API_URL",
+      "api_key_env": "DATA_GO_KR_SERVICE_KEY",
+      "domain": "complex",
+      "required": [
+        "kapt_code",
+        "complex_name"
+      ],
+      "aliases": {
+        "kapt_code": [
+          "kapt_code",
+          "kaptCode",
+          "\ub2e8\uc9c0\ucf54\ub4dc"
+        ],
+        "complex_name": [
+          "complex_name",
+          "kaptName",
+          "\ub2e8\uc9c0\uba85"
+        ],
+        "address": [
+          "address",
+          "doroJuso",
+          "\ub3c4\ub85c\uba85\uc8fc\uc18c"
+        ]
+      }
+    },
+    {
+      "id": "molit_complex_basic",
+      "name": "\uad6d\ud1a0\uad50\ud1b5\ubd80_\uacf5\ub3d9\uc8fc\ud0dd \uae30\ubcf8 \uc815\ubcf4\uc81c\uacf5 \uc11c\ube44\uc2a4",
+      "mode": "api",
+      "formats": [
+        "json",
+        "xml"
+      ],
+      "api_url_env": "MOLIT_COMPLEX_BASIC_API_URL",
+      "api_key_env": "DATA_GO_KR_SERVICE_KEY",
+      "domain": "complex_detail",
+      "required": [
+        "kapt_code"
+      ],
+      "aliases": {
+        "kapt_code": [
+          "kapt_code",
+          "kaptCode",
+          "\ub2e8\uc9c0\ucf54\ub4dc"
+        ],
+        "households": [
+          "households",
+          "kaptdaCnt",
+          "\uc138\ub300\uc218"
+        ],
+        "building_count": [
+          "building_count",
+          "kaptDongCnt",
+          "\ub3d9\uc218"
+        ],
+        "approval_date": [
+          "approval_date",
+          "kaptUsedate",
+          "\uc0ac\uc6a9\uc2b9\uc778\uc77c"
+        ]
+      }
+    },
+    {
+      "id": "kapt_maintenance_cost",
+      "name": "\uad6d\ud1a0\uad50\ud1b5\ubd80_\uacf5\ub3d9\uc8fc\ud0dd\uad00\ub9ac\ube44(\uacf5\uc6a9\uad00\ub9ac\ube44)\uc815\ubcf4\uc81c\uacf5\uc11c\ube44\uc2a4",
+      "mode": "api",
+      "formats": [
+        "json",
+        "xml"
+      ],
+      "api_url_env": "KAPT_MAINTENANCE_COST_API_URL",
+      "api_key_env": "DATA_GO_KR_SERVICE_KEY",
+      "domain": "maintenance",
+      "required": [
+        "kapt_code",
+        "billing_month"
+      ],
+      "aliases": {
+        "kapt_code": [
+          "kapt_code",
+          "kaptCode",
+          "\ub2e8\uc9c0\ucf54\ub4dc"
+        ],
+        "billing_month": [
+          "billing_month",
+          "searchDate",
+          "\ubd80\uacfc\ub144\uc6d4"
+        ],
+        "elevator_cost": [
+          "elevator_cost",
+          "elevCost",
+          "\uc2b9\uac15\uae30\uc720\uc9c0\ube44"
+        ],
+        "repair_cost": [
+          "repair_cost",
+          "\uc218\uc120\ube44"
+        ]
+      }
+    },
+    {
+      "id": "kma_vilage_forecast",
+      "name": "\uae30\uc0c1\uccad_\ub2e8\uae30\uc608\ubcf4 \uc870\ud68c\uc11c\ube44\uc2a4",
+      "mode": "api",
+      "formats": [
+        "json",
+        "xml"
+      ],
+      "api_url_env": "KMA_VILAGE_FORECAST_API_URL",
+      "api_key_env": "KMA_SERVICE_KEY",
+      "domain": "weather_forecast",
+      "required": [
+        "base_date",
+        "base_time",
+        "forecast_date",
+        "forecast_time",
+        "category"
+      ],
+      "aliases": {
+        "base_date": [
+          "base_date",
+          "baseDate"
+        ],
+        "base_time": [
+          "base_time",
+          "baseTime"
+        ],
+        "forecast_date": [
+          "forecast_date",
+          "fcstDate"
+        ],
+        "forecast_time": [
+          "forecast_time",
+          "fcstTime"
+        ],
+        "category": [
+          "category"
+        ],
+        "value": [
+          "value",
+          "fcstValue"
+        ],
+        "grid_x": [
+          "grid_x",
+          "nx"
+        ],
+        "grid_y": [
+          "grid_y",
+          "ny"
+        ]
+      }
+    },
+    {
+      "id": "kma_asos_hourly",
+      "name": "\uae30\uc0c1\uccad_\uc9c0\uc0c1(\uc885\uad00, ASOS) \uc2dc\uac04\uc790\ub8cc \uc870\ud68c\uc11c\ube44\uc2a4",
+      "mode": "api",
+      "formats": [
+        "json",
+        "xml",
+        "csv"
+      ],
+      "api_url_env": "KMA_ASOS_HOURLY_API_URL",
+      "api_key_env": "KMA_SERVICE_KEY",
+      "domain": "weather_observation",
+      "required": [
+        "station_id",
+        "observed_at"
+      ],
+      "aliases": {
+        "station_id": [
+          "station_id",
+          "stnId",
+          "\uc9c0\uc810"
+        ],
+        "observed_at": [
+          "observed_at",
+          "tm",
+          "\uc77c\uc2dc"
+        ],
+        "temperature_c": [
+          "temperature_c",
+          "ta",
+          "\uae30\uc628"
+        ],
+        "rainfall_mm": [
+          "rainfall_mm",
+          "rn",
+          "\uac15\uc218\ub7c9"
+        ],
+        "humidity_pct": [
+          "humidity_pct",
+          "hm",
+          "\uc2b5\ub3c4"
+        ]
+      }
+    },
+    {
+      "id": "seoul_rainfall",
+      "name": "\uc11c\uc6b8\ud2b9\ubcc4\uc2dc_\uac15\uc6b0\ub7c9 \uc815\ubcf4",
+      "mode": "api",
+      "formats": [
+        "json",
+        "xml",
+        "csv"
+      ],
+      "api_url_env": "SEOUL_RAINFALL_API_URL",
+      "api_key_env": "SEOUL_RAINFALL_API_KEY",
+      "domain": "rainfall",
+      "required": [
+        "station_id",
+        "observed_at",
+        "rainfall_mm"
+      ],
+      "aliases": {
+        "station_id": [
+          "station_id",
+          "RF_CD",
+          "RAINGAUGE_CODE",
+          "\uad00\uce21\uc18c\ucf54\ub4dc"
+        ],
+        "station_name": [
+          "station_name",
+          "RF_NM",
+          "RAINGAUGE_NAME",
+          "\uad00\uce21\uc18c\uba85"
+        ],
+        "observed_at": [
+          "observed_at",
+          "DATA_CLCT_TM",
+          "RECEIVE_TIME",
+          "\uc218\uc2e0\uc2dc\uac04"
+        ],
+        "rainfall_mm": [
+          "rainfall_mm",
+          "RN_10M",
+          "RAINFALL10",
+          "\uac15\uc6b0\ub7c9"
+        ]
+      }
+    },
+    {
+      "id": "seoul_rainfall_historical",
+      "name": "\uc11c\uc6b8\uc2dc \uac15\uc6b0\ub7c9 \ub370\uc774\ud130(2021~2024)",
+      "mode": "file",
+      "formats": [
+        "zip",
+        "csv"
+      ],
+      "domain": "rainfall_history",
+      "required": [
+        "station_name",
+        "observed_at",
+        "rainfall_mm"
+      ],
+      "aliases": {
+        "station_name": [
+          "station_name",
+          "\uac15\uc6b0\ub7c9\uacc4\uba85"
+        ],
+        "observed_at": [
+          "observed_at",
+          "\uc2dc\uac04"
+        ],
+        "rainfall_mm": [
+          "rainfall_mm",
+          "10\ubd84\uc6b0\ub7c9"
+        ]
+      }
+    },
+    {
+      "id": "seoul_sewer_level",
+      "name": "\uc11c\uc6b8\ud2b9\ubcc4\uc2dc_\ud558\uc218\uad00\ub85c \uc218\uc704 \ud604\ud669",
+      "mode": "api",
+      "formats": [
+        "json",
+        "xml",
+        "csv"
+      ],
+      "api_url_env": "SEOUL_SEWER_LEVEL_API_URL",
+      "api_key_env": "SEOUL_SEWER_LEVEL_API_KEY",
+      "domain": "sewer_level",
+      "required": [
+        "sensor_id",
+        "observed_at",
+        "water_level"
+      ],
+      "aliases": {
+        "sensor_id": [
+          "sensor_id",
+          "UNQ_NO",
+          "IDN",
+          "\uce21\uc815\uc18cID"
+        ],
+        "observed_at": [
+          "observed_at",
+          "MSRMT_YMD",
+          "MEA_YMD",
+          "\uce21\uc815\uc77c\uc2dc"
+        ],
+        "water_level": [
+          "water_level",
+          "MSRMT_WATL",
+          "MEA_WAL",
+          "\uc218\uc704"
+        ],
+        "latitude": [
+          "latitude",
+          "LAT",
+          "\uc704\ub3c4"
+        ],
+        "longitude": [
+          "longitude",
+          "LON",
+          "\uacbd\ub3c4"
+        ]
+      }
+    },
+    {
+      "id": "seoul_flood_trace",
+      "name": "\ud589\uc815\uc548\uc804\ubd80_\uce68\uc218\ud754\uc801\ub3c4 \uacf5\uac04\ud30c\uc77c",
+      "mode": "file",
+      "formats": [
+        "shp",
+        "gpkg",
+        "geojson",
+        "zip"
+      ],
+      "domain": "flood_history_geometry",
+      "required": [
+        "geometry"
+      ],
+      "aliases": {
+        "event_date": [
+          "event_date",
+          "\uce68\uc218\uc77c\uc790",
+          "\ubc1c\uc0dd\uc77c"
+        ],
+        "depth_cm": [
+          "depth_cm",
+          "\uce68\uc218\uc2ec",
+          "\uce68\uc218\uae4a\uc774",
+          "FLDN_DOWA"
+        ],
+        "geometry": [
+          "geometry"
+        ]
+      }
+    },
+    {
+      "id": "mois_flood_trace_api",
+      "name": "\ud589\uc815\uc548\uc804\ubd80_\uce68\uc218\ud754\uc801\ub3c4 API \uc18d\uc131",
+      "mode": "api",
+      "formats": [
+        "json",
+        "xml"
+      ],
+      "api_url_env": "MOIS_FLOOD_TRACE_API_URL",
+      "api_key_env": "MOIS_FLOOD_TRACE_API_KEY",
+      "domain": "flood_history_attribute",
+      "required": [
+        "trace_serial_number",
+        "flood_depth"
+      ],
+      "aliases": {
+        "trace_serial_number": [
+          "trace_serial_number",
+          "SN",
+          "\uc77c\ub828\ubc88\ud638"
+        ],
+        "flood_depth": [
+          "flood_depth",
+          "FLDN_DOWA",
+          "\uce68\uc218\uc218\uc2ec"
+        ]
+      }
+    },
+    {
+      "id": "seoul_flood_forecast_geometry",
+      "name": "\uc11c\uc6b8\ud2b9\ubcc4\uc2dc_\ud48d\uc218\ud574 \uce68\uc218\uc608\uc0c1\ub3c4 \uacf5\uac04\uc815\ubcf4",
+      "mode": "file_or_api",
+      "formats": [
+        "shp",
+        "gpkg",
+        "geojson",
+        "zip",
+        "json",
+        "xml"
+      ],
+      "api_url_env": "SEOUL_FLOOD_FORECAST_MAP_API_URL",
+      "api_key_env": "SEOUL_FLOOD_FORECAST_MAP_API_KEY",
+      "domain": "flood_forecast_area",
+      "required": [
+        "space_id",
+        "flood_stage"
+      ],
+      "aliases": {
+        "space_id": [
+          "space_id",
+          "SPACE_id",
+          "\uacf5\uac04ID"
+        ],
+        "sequence": [
+          "sequence",
+          "SN",
+          "\uc21c\ubc88"
+        ],
+        "flood_stage": [
+          "flood_stage",
+          "FLDG_STG",
+          "\uce68\uc218\ub2e8\uacc4"
+        ],
+        "geometry": [
+          "geometry"
+        ]
+      }
+    },
+    {
+      "id": "ngii_dem",
+      "name": "\uad6d\ud1a0\uad50\ud1b5\ubd80 \uad6d\ud1a0\uc9c0\ub9ac\uc815\ubcf4\uc6d0_DEM",
+      "mode": "file",
+      "formats": [
+        "tif",
+        "tiff",
+        "img",
+        "zip"
+      ],
+      "domain": "terrain",
+      "required": [],
+      "aliases": {}
+    },
+    {
+      "id": "seoul_rain_pump_stations",
+      "name": "\uc11c\uc6b8\ud2b9\ubcc4\uc2dc_\ube57\ubb3c\ud38c\ud504\uc7a5 \uacf5\uac04\uc815\ubcf4",
+      "mode": "file",
+      "formats": [
+        "zip",
+        "shp"
+      ],
+      "domain": "drainage_infrastructure",
+      "required": [
+        "pump_name",
+        "geometry"
+      ],
+      "aliases": {
+        "pump_id": [
+          "pump_id",
+          "UNI_CD",
+          "SPACE_id",
+          "\uacf5\uac04id"
+        ],
+        "pump_name": [
+          "pump_name",
+          "PUMP_NM",
+          "\ud38c\ud504\uc774\ub984"
+        ],
+        "operation_status": [
+          "operation_status",
+          "OPR_YN"
+        ],
+        "established_date": [
+          "established_date",
+          "EST_DT"
+        ],
+        "geometry": [
+          "geometry"
+        ]
+      }
+    },
+    {
+      "id": "elevator_installations",
+      "name": "\ud55c\uad6d\uc2b9\uac15\uae30\uc548\uc804\uacf5\ub2e8_\uc2b9\uac15\uae30 \uc124\uce58 \ud604\ud669_20251231",
+      "mode": "file",
+      "formats": [
+        "csv",
+        "xlsx"
+      ],
+      "domain": "elevator",
+      "required": [
+        "elevator_id",
+        "address"
+      ],
+      "aliases": {
+        "elevator_id": [
+          "elevator_id",
+          "\uc2b9\uac15\uae30\ubc88\ud638",
+          "\uc2b9\uac15\uae30\uace0\uc720\ubc88\ud638"
+        ],
+        "address": [
+          "address",
+          "\uac74\ubb3c\uc8fc\uc18c",
+          "\uc124\uce58\uc8fc\uc18c",
+          "\uc18c\uc7ac\uc9c0"
+        ],
+        "building_name": [
+          "building_name",
+          "\uac74\ubb3c\uba85"
+        ],
+        "region": [
+          "region",
+          "\uc2dc\ub3c4"
+        ],
+        "district": [
+          "district",
+          "\uc2dc\uad70\uad6c"
+        ],
+        "installation_date": [
+          "installation_date",
+          "\uc124\uce58\uc77c\uc790"
+        ],
+        "first_installation_date": [
+          "first_installation_date",
+          "\ucd5c\ucd08\uc124\uce58\uc77c\uc790"
+        ],
+        "manufacturer": [
+          "manufacturer",
+          "\uc81c\uc870\uc5c5\uccb4"
+        ],
+        "maintenance_company": [
+          "maintenance_company",
+          "\uc720\uc9c0\uad00\ub9ac\uc5c5\uccb4"
+        ],
+        "rated_load_kg": [
+          "rated_load_kg",
+          "\uc801\uc7ac\ud558\uc911",
+          "\uc815\uaca9\ud558\uc911"
+        ],
+        "rated_speed": [
+          "rated_speed",
+          "\uc815\uaca9\uc18d\ub3c4"
+        ],
+        "capacity_persons": [
+          "capacity_persons",
+          "\ucd5c\ub300\uc815\uc6d0"
+        ],
+        "equipment_type": [
+          "equipment_type",
+          "\uc2b9\uac15\uae30\uc885\ub958"
+        ],
+        "equipment_status": [
+          "equipment_status",
+          "\uc2b9\uac15\uae30\uc0c1\ud0dc"
+        ],
+        "inspection_expiry_date": [
+          "inspection_expiry_date",
+          "\uac80\uc0ac\uc720\ud6a8\ub9cc\ub8cc\uc77c\uc790"
+        ],
+        "inspection_history_code": [
+          "inspection_history_code",
+          "\uac80\uc0ac\uacb0\uacfc\uc774\ub825\uc870\ud68c\ucf54\ub4dc"
+        ]
+      }
+    },
+    {
+      "id": "elevator_building_coordinates",
+      "name": "\ud55c\uad6d\uc2b9\uac15\uae30\uc548\uc804\uacf5\ub2e8_\uc2b9\uac15\uae30 \uc124\uce58 \uac74\ubb3c \uc88c\ud45c \ubaa9\ub85d",
+      "mode": "file_or_api",
+      "formats": [
+        "csv",
+        "xlsx",
+        "json"
+      ],
+      "api_url_env": "ELEVATOR_BUILDING_COORD_API_URL",
+      "api_key_env": "DATA_GO_KR_SERVICE_KEY",
+      "domain": "elevator_location",
+      "required": [
+        "address",
+        "latitude",
+        "longitude"
+      ],
+      "aliases": {
+        "building_name": [
+          "building_name",
+          "\uac74\ubb3c\uba85"
+        ],
+        "latitude": [
+          "latitude",
+          "\uc704\ub3c4",
+          "lat"
+        ],
+        "longitude": [
+          "longitude",
+          "\uacbd\ub3c4",
+          "lon",
+          "lng"
+        ],
+        "address": [
+          "address",
+          "\uac74\ubb3c\uc8fc\uc18c",
+          "\uc8fc\uc18c",
+          "\ub3c4\ub85c\uba85\uc8fc\uc18c"
+        ]
+      }
+    },
+    {
+      "id": "elevator_inspections",
+      "name": "\ud55c\uad6d\uc2b9\uac15\uae30\uc548\uc804\uacf5\ub2e8_\uc2b9\uac15\uae30 \uac80\uc0ac \uacb0\uacfc",
+      "mode": "file_or_api",
+      "formats": [
+        "csv",
+        "xlsx",
+        "json"
+      ],
+      "api_url_env": "ELEVATOR_INSPECTION_API_URL",
+      "api_key_env": "DATA_GO_KR_SERVICE_KEY",
+      "domain": "elevator_inspection",
+      "required": [
+        "inspection_history_code",
+        "inspection_date",
+        "inspection_result"
+      ],
+      "aliases": {
+        "inspection_history_code": [
+          "inspection_history_code",
+          "\uac80\uc0ac\uacb0\uacfc\uc774\ub825\uc870\ud68c\ucf54\ub4dc"
+        ],
+        "inspection_date": [
+          "inspection_date",
+          "\uac80\uc0ac\uc77c\uc790"
+        ],
+        "inspection_result": [
+          "inspection_result",
+          "\uac80\uc0ac\uacb0\uacfc"
+        ],
+        "inspection_type": [
+          "inspection_type",
+          "\uac80\uc0ac\uc885\ub958"
+        ]
+      }
+    },
+    {
+      "id": "elevator_corrective_actions",
+      "name": "\uc2b9\uac15\uae30 \uc548\uc804\uac80\uc0ac \uc2dc\uc815\uad8c\uace0 \ub0b4\uc5ed",
+      "mode": "file_or_api",
+      "formats": [
+        "csv",
+        "xlsx",
+        "json"
+      ],
+      "api_url_env": "ELEVATOR_CORRECTIVE_ACTION_API_URL",
+      "api_key_env": "DATA_GO_KR_SERVICE_KEY",
+      "domain": "elevator_corrective_action",
+      "required": [
+        "elevator_id",
+        "recommendation_date"
+      ],
+      "aliases": {
+        "elevator_id": [
+          "elevator_id",
+          "\uc2b9\uac15\uae30\ubc88\ud638",
+          "\uc2b9\uac15\uae30\uace0\uc720\ubc88\ud638"
+        ],
+        "recommendation_date": [
+          "recommendation_date",
+          "\uac80\uc0ac\uc77c\uc790",
+          "\uc2dc\uc815\uad8c\uace0\uc77c\uc790"
+        ],
+        "recommendation_text": [
+          "recommendation_text",
+          "\uc2dc\uc815\uad8c\uace0\ub0b4\uc6a9",
+          "\uad8c\uace0\ub0b4\uc6a9"
+        ],
+        "completion_date": [
+          "completion_date",
+          "\uc870\uce58\uc644\ub8cc\uc77c"
+        ]
+      }
+    },
+    {
+      "id": "seoul_rain_gauge_locations",
+      "name": "\uc11c\uc6b8\ud2b9\ubcc4\uc2dc \uac15\uc6b0\ub7c9\uacc4 \uc704\uce58\uc815\ubcf4",
+      "mode": "file_or_api",
+      "formats": [
+        "csv",
+        "xlsx",
+        "json",
+        "geojson",
+        "shp",
+        "zip"
+      ],
+      "api_url_env": "SEOUL_RAIN_GAUGE_LOCATION_API_URL",
+      "api_key_env": "SEOUL_RAIN_GAUGE_LOCATION_API_KEY",
+      "domain": "rain_gauge_location",
+      "required": [
+        "station_id",
+        "station_name",
+        "geometry"
+      ],
+      "aliases": {
+        "station_id": [
+          "station_id",
+          "RAINGAUGE_CODE",
+          "RF_CD"
+        ],
+        "station_name": [
+          "station_name",
+          "RAINGAUGE_NAME",
+          "RF_NM"
+        ],
+        "district": [
+          "district",
+          "GU_NM"
+        ],
+        "latitude": [
+          "latitude",
+          "LAT"
+        ],
+        "longitude": [
+          "longitude",
+          "LON"
+        ],
+        "geometry": [
+          "geometry"
+        ]
+      }
+    },
+    {
+      "id": "seoul_pump_station_attributes",
+      "name": "\uc11c\uc6b8\ud2b9\ubcc4\uc2dc \ubc30\uc218\ud38c\ud504\uc7a5 \uc2dc\uc124\u00b7\uc6b4\uc601 \uc815\ubcf4",
+      "mode": "file_or_api",
+      "formats": [
+        "csv",
+        "xlsx",
+        "json",
+        "xml"
+      ],
+      "api_url_env": "SEOUL_PUMP_STATION_ATTRIBUTE_API_URL",
+      "api_key_env": "SEOUL_PUMP_STATION_ATTRIBUTE_API_KEY",
+      "domain": "pump_station_attribute",
+      "required": [
+        "pump_station_name"
+      ],
+      "aliases": {
+        "pump_station_id": [
+          "pump_station_id",
+          "PUMP_ID"
+        ],
+        "pump_station_name": [
+          "pump_station_name",
+          "PUMP_NM"
+        ],
+        "drainage_area": [
+          "drainage_area"
+        ],
+        "pump_capacity": [
+          "pump_capacity"
+        ],
+        "pump_count": [
+          "pump_count"
+        ],
+        "design_capacity": [
+          "design_capacity"
+        ],
+        "operating_level": [
+          "operating_level"
+        ],
+        "warning_level": [
+          "warning_level"
+        ]
+      }
+    },
+    {
+      "id": "seoul_river_levels",
+      "name": "\uc11c\uc6b8\ud2b9\ubcc4\uc2dc \ud558\ucc9c \uc218\uc704 \ud604\ud669",
+      "mode": "file_or_api",
+      "formats": [
+        "csv",
+        "xlsx",
+        "json",
+        "xml"
+      ],
+      "api_url_env": "SEOUL_RIVER_LEVEL_API_URL",
+      "api_key_env": "SEOUL_RIVER_LEVEL_API_KEY",
+      "domain": "river_level",
+      "required": [
+        "river_station_id",
+        "observed_at",
+        "water_level"
+      ],
+      "aliases": {
+        "river_station_id": [
+          "river_station_id",
+          "STATION_ID"
+        ],
+        "river_station_name": [
+          "river_station_name",
+          "STATION_NAME"
+        ],
+        "river_name": [
+          "river_name",
+          "RIVER_NAME"
+        ],
+        "district": [
+          "district",
+          "GU_NM"
+        ],
+        "observed_at": [
+          "observed_at",
+          "MSRMT_YMD"
+        ],
+        "water_level": [
+          "water_level",
+          "WL"
+        ],
+        "latitude": [
+          "latitude",
+          "LAT"
+        ],
+        "longitude": [
+          "longitude",
+          "LON"
+        ]
+      }
+    }
   ]
 }

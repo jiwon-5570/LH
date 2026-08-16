@@ -42,7 +42,7 @@
 - `stress_test_runs`: 강우·하수 수위 변화 시나리오 입력과 결과 이력 저장
 - NAVER 지도: 서울 단지와 회복력 등급별 마커, 근거 팝업
 - Claude: Backend가 제공한 구조화된 서울 분석결과만 설명
-- Flood ML: `BLOCKED_BY_DATA` — 행정안전부 침수흔적도 원본 미적재
+- Flood ML: `BLOCKED_BY_DATA` — 서울 침수흔적도 2020·2022·2023·2024·2025 적재 완료, 2021 시계열·정확한 서울 경계·음성표본 정책·시간분리 검증 미완료
 - Facility ML: `NOT_READY` — 시간순 차기 검사 라벨 학습표와 외부검증 미완료; 규칙 Baseline만 사용
 
 ### DEM 공간 Feature v2
@@ -56,7 +56,7 @@ lowland_index_R = clamp(-relative_elevation_R / (2 × R 반경 표고 표준편�
 
 저지대 지수 100은 단지가 주변 평균보다 2 표준편차 이상 낮다는 뜻이며 침수확률이 아닙니다. 유효 픽셀 면적/원형 Buffer 면적으로 DEM Coverage를 계산하고 60% 미만이면 `INSUFFICIENT`로 처리합니다.
 
-Resilience v2는 미확보 Historical Exposure를 50점으로 대체하지 않습니다. 값이 존재하는 구성요소의 원래 가중치 합으로 재정규화하며 `available_components`, `missing_components`, `effective_weights`를 저장합니다. Climate Stress Scenario는 Feature 변화만 저장하고 검증 Flood ML 전에는 `scenario_score=null`, `NOT_READY`입니다.
+Resilience v3는 공식 침수흔적도와 단지 좌표의 최근접 거리, 점 교차 여부, 100/300/500m 겹침 면적비와 연도 이력을 Historical Exposure 근거로 사용합니다. 이 값은 침수확률이 아닌 운영 근접지수입니다. 누락 구성요소는 임의 50점으로 대체하지 않고 가용 구성요소 가중치를 재정규화합니다. Climate Stress Scenario는 Feature 변화만 저장하고 검증 Flood ML 전에는 `scenario_score=null`, `NOT_READY`입니다.
 
 현재 구현 범위를 넘어선 기능을 완료한 것으로 간주하면 안 됩니다.
 
@@ -83,6 +83,16 @@ data/quarantine  검증 실패 데이터
 - 국토교통부 공동주택/K-apt 기본정보와 관리비
 - 기상청 실황·초단기예보·단기예보
 - 서울시 강우량·침수흔적·침수예상·하수관로 수위
+- 서울시 과거 강우량 2021~2024: 48개 관측소·192개 파일을 10분 시계열로 분할 적재하고 실증 1/3/24시간 분위값 생성
+
+과거 강우량 ZIP 갱신 명령:
+
+```powershell
+.\.venv\Scripts\python.exe -m scripts.ingest_rainfall_history "C:\파일경로\서울시 강우량 데이터(2021~2024).zip"
+```
+
+과거자료는 실시간 API 데이터와 분리 저장되며, 양의 강우 관측 p50/p90/p95/p99/p99.9를 현재 강우의 상대적 이례성 기준으로 사용합니다. 이는 강우 또는 침수 발생확률이 아닙니다.
+- 서울시 빗물펌프장 공간정보: 118개 위치 적재, 단지별 최근접 거리와 1/3/5km 시설 수 제공
 - 행정안전부 침수흔적도, 국토지리정보원 DEM
 - 한국승강기안전공단 설치·검사·시정권고 정보
 
@@ -193,7 +203,24 @@ streamlit run app.py --server.headless true
 | `SEOUL_RAINFALL_API_KEY` | 서울시 강우량 전용 키 | 강우량 수집 |
 | `SEOUL_SEWER_LEVEL_API_KEY` | 서울시 하수관로 전용 키 | 하수 수위 수집 |
 | `SEOUL_FLOOD_FORECAST_MAP_API_KEY` | 풍수해 침수예상도 전용 키 | 공간정보 수집 |
+| `MOIS_FLOOD_TRACE_API_KEY` | 재난안전데이터공유플랫폼 침수흔적도 전용 키 | `DSSP-IF-00117` 속성 수집 |
 | `ANTHROPIC_API_KEY` | Claude API | AI 기능 활성화 |
+
+행정안전부 침수흔적도 승인 키는 `.env`의 아래 항목에 따옴표 없이 입력합니다.
+
+```dotenv
+MOIS_FLOOD_TRACE_API_KEY=발급받은_인증키
+MOIS_FLOOD_TRACE_API_URL=https://www.safetydata.go.kr/V2/api/DSSP-IF-00117
+```
+
+인증 확인과 전체 속성 수집 명령은 다음과 같습니다.
+
+```powershell
+.\scripts\diagnose_api_keys.ps1
+.\.venv\Scripts\python.exe -m scripts.ingest_mois_flood_trace_api
+```
+
+해당 API의 공식 출력항목은 일련번호(`SN`)와 침수수심(`FLDN_DOWA`)이며 공간 도형은 포함하지 않습니다. 따라서 API 결과는 `data/processed/mois_flood_trace_api`에 속성 데이터로 보존하고, 침수영역 라벨 생성에는 별도 SHP/GPKG/GeoJSON 공간파일을 사용합니다.
 | `CLAUDE_MODEL` | 사용할 Claude 모델명(현재 `claude-sonnet-5`) | AI 기능 활성화 |
 | `BASIC_AUTH_USERNAME/PASSWORD` | 인증 연동용 | 운영 배포 |
 
@@ -384,3 +411,16 @@ pytest
 - 본 시스템은 의사결정 지원 도구이며, 경보 발령과 시설 운행 중지는 현장 확인 및 담당자의 최종 판단을 따라야 합니다.
 
 초기 분석과 14일 계획은 `IMPLEMENTATION_PLAN.md`, 변경 이력과 제한사항은 `DEVELOPMENT_LOG.md`에서 확인할 수 있습니다.
+
+## 서울 수문·침수 통합 현황
+
+운영 Dataset ID는 `seoul_flood_trace`, `seoul_flood_forecast_geometry`, `seoul_rain_gauge_locations`, `seoul_rain_pump_stations`, `seoul_pump_station_attributes`, `seoul_river_levels`, `seoul_rainfall_historical`로 고정했습니다.
+
+현재 실제 원본과 연결된 것은 침수흔적도(2020, 2022~2025), 빗물펌프장 공간정보, 과거 강우(2021~2024)입니다. 나머지 예상침수도, 강우계 위치, 펌프 속성, 하천수위는 저장소에서 실제 원본/API 캐시가 발견되지 않아 `BLOCKED_BY_DATA`입니다. 없는 값은 0이나 임의 좌표로 대체하지 않습니다.
+
+```powershell
+.\.venv\Scripts\python.exe scripts\build_seoul_hydrology.py
+.\.venv\Scripts\python.exe scripts\build_seoul_resilience.py
+```
+
+대용량 원본·Geometry·시계열은 GeoParquet/Parquet에, 화면 조회용 단지 집계는 SQLite의 `flood_spatial_features`에 저장합니다. 침수흔적은 과거 발생 근거, 침수예상도는 취약 공간 Feature로 구분합니다. Flood ML은 정확한 서울 경계, 100m grid, 음성/비교 표본 정책, 공간 분리 검증이 갖춰지기 전까지 `BLOCKED_BY_DATA`입니다.

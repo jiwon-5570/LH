@@ -44,3 +44,13 @@ Day 1 구조·정직성 게이트, Day 2 DB/API, Day 3~6 실제 수집·매칭, 
 - Flood ML: 실제 침수흔적·서울 경계·label 정책 미확보로 `BLOCKED_BY_DATA`
 - Resilience: Historical Exposure 50점 대체 제거, 가용 구성요소 가중치 재정규화
 - Stress Test: 휴리스틱 점수 제거, modified feature만 저장하고 `NOT_READY`
+
+## Seoul hydrology integration status (2026-08-17)
+
+- [x] Canonical 7-dataset registry and incoming folders
+- [x] Flood trace canonical GeoParquet and deterministic deduplication
+- [x] Rain-pump 500m/1km/2km proximity features
+- [x] Compact `flood_spatial_features` DB table
+- [x] Six FastAPI detail endpoints and Streamlit evidence tab
+- [ ] Flood forecast, rain-gauge location, pump attributes, river levels: `BLOCKED_BY_DATA`
+- [ ] Exact Seoul boundary, 100m grid, negative-sample policy, spatial ML split: `NOT_READY`

@@ -4,9 +4,16 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from backend.app.db.base import ModelEvaluation, ModelVersion, RiskAssessment, SeoulComplexProfile
+from backend.app.db.base import (
+    FloodSpatialFeature,
+    ModelEvaluation,
+    ModelVersion,
+    RiskAssessment,
+    SeoulComplexProfile,
+)
 from backend.app.db.session import get_db
 from backend.app.schemas.seoul import SeoulComplexSummary, StressTestOut, StressTestRequest
+from backend.app.services.flood_spatial_feature_service import feature_payload
 from backend.app.services.seoul_resilience_service import latest_assessments, profile_payload, run_stress_test
 
 router = APIRouter(prefix="/seoul", tags=["Seoul Resilience"])
@@ -71,6 +78,42 @@ def facility(complex_id: str, db: Db): return _assessment(complex_id, "facility_
 def explanations(complex_id: str, db: Db):
     rows = latest_assessments(db, complex_id)
     return {kind: row.explanation_snapshot for kind, row in rows.items()}
+
+
+def _flood_feature(complex_id: str, section: str | None, db: Session):
+    if not db.get(SeoulComplexProfile, complex_id):
+        raise HTTPException(404, "서울 분석 대상 단지가 아닙니다")
+    return feature_payload(db.get(FloodSpatialFeature, complex_id), section)
+
+
+@router.get("/complexes/{complex_id}/flood-history")
+def flood_history(complex_id: str, db: Db):
+    return _flood_feature(complex_id, "flood-history", db)
+
+
+@router.get("/complexes/{complex_id}/flood-forecast")
+def flood_forecast(complex_id: str, db: Db):
+    return _flood_feature(complex_id, "flood-forecast", db)
+
+
+@router.get("/complexes/{complex_id}/rainfall")
+def rainfall(complex_id: str, db: Db):
+    return _flood_feature(complex_id, "rainfall", db)
+
+
+@router.get("/complexes/{complex_id}/drainage")
+def drainage(complex_id: str, db: Db):
+    return _flood_feature(complex_id, "drainage", db)
+
+
+@router.get("/complexes/{complex_id}/river")
+def river(complex_id: str, db: Db):
+    return _flood_feature(complex_id, "river", db)
+
+
+@router.get("/complexes/{complex_id}/flood-features")
+def flood_features(complex_id: str, db: Db):
+    return _flood_feature(complex_id, None, db)
 
 
 @router.get("/high-risk", response_model=list[SeoulComplexSummary])

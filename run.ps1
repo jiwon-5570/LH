@@ -43,6 +43,15 @@ try {
         $previousErrorActionPreference = $ErrorActionPreference
         $ErrorActionPreference = 'Continue'
         & $venvPython -m scripts.build_terrain_features
+        if (Test-Path (Join-Path $root 'data\processed\mois_flood_trace\*.parquet')) {
+            & $venvPython -m scripts.build_historical_flood_features
+        }
+        if (Test-Path (Join-Path $root 'data\processed\seoul_rain_pump\*.parquet')) {
+            & $venvPython -m scripts.ingest_rain_pump
+        }
+        if (Test-Path (Join-Path $root 'data\processed\seoul_rainfall_history\*\rainfall_reference.json')) {
+            & $venvPython -m scripts.ingest_rainfall_history
+        }
         & $venvPython -m scripts.build_seoul_resilience
         $profileReady = ($LASTEXITCODE -eq 0)
         $ErrorActionPreference = $previousErrorActionPreference
