@@ -424,3 +424,29 @@ pytest
 ```
 
 대용량 원본·Geometry·시계열은 GeoParquet/Parquet에, 화면 조회용 단지 집계는 SQLite의 `flood_spatial_features`에 저장합니다. 침수흔적은 과거 발생 근거, 침수예상도는 취약 공간 Feature로 구분합니다. Flood ML은 정확한 서울 경계, 100m grid, 음성/비교 표본 정책, 공간 분리 검증이 갖춰지기 전까지 `BLOCKED_BY_DATA`입니다.
+
+### 서울 수문 API 키 입력 및 수집
+
+`.env`에서 아래 값을 채웁니다. 네 데이터셋은 서로 다른 인증키를 사용할 수 있습니다.
+
+```dotenv
+SEOUL_FLOOD_FORECAST_MAP_API_KEY=
+SEOUL_FLOOD_FORECAST_MAP_API_URL=http://openapi.seoul.go.kr:8088/{key}/json/floodingDs/{start}/{end}/
+
+SEOUL_RAIN_GAUGE_LOCATION_API_KEY=
+SEOUL_RAIN_GAUGE_LOCATION_API_URL=
+
+SEOUL_PUMP_STATION_ATTRIBUTE_API_KEY=
+SEOUL_PUMP_STATION_ATTRIBUTE_API_URL=
+
+SEOUL_RIVER_LEVEL_API_KEY=
+SEOUL_RIVER_LEVEL_API_URL=
+```
+
+URL은 서울 열린데이터광장 상세 페이지의 실제 서비스명을 사용한 `{key}/{start}/{end}` 템플릿으로 입력합니다. 키 값은 따옴표 없이 입력합니다. 이후 다음 명령 하나로 설정된 API만 수집하고 단지 Feature를 갱신합니다.
+
+```powershell
+.\.venv\Scripts\python.exe -m scripts.collect_seoul_hydrology_apis
+```
+
+설정 및 적재 상태는 `GET /api/v1/seoul/hydrology-sources`에서 키 값을 노출하지 않고 확인할 수 있습니다. `floodingDs`는 실제 검증 결과 2,094개의 단계 속성을 반환하지만 Geometry는 반환하지 않으므로 `PARTIAL_NO_GEOMETRY`로 관리하며, 공간파일과 `space_id`로 결합되기 전에는 침수예상 면적비를 계산하지 않습니다.

@@ -43,15 +43,17 @@ try {
         $previousErrorActionPreference = $ErrorActionPreference
         $ErrorActionPreference = 'Continue'
         & $venvPython -m scripts.build_terrain_features
-        if (Test-Path (Join-Path $root 'data\processed\mois_flood_trace\*.parquet')) {
+        if (Test-Path (Join-Path $projectRoot 'data\processed\mois_flood_trace\*.parquet')) {
             & $venvPython -m scripts.build_historical_flood_features
         }
-        if (Test-Path (Join-Path $root 'data\processed\seoul_rain_pump\*.parquet')) {
+        if (Test-Path (Join-Path $projectRoot 'data\processed\seoul_rain_pump\*.parquet')) {
             & $venvPython -m scripts.ingest_rain_pump
         }
-        if (Test-Path (Join-Path $root 'data\processed\seoul_rainfall_history\*\rainfall_reference.json')) {
+        if (Test-Path (Join-Path $projectRoot 'data\processed\seoul_rainfall_history\*\rainfall_reference.json')) {
             & $venvPython -m scripts.ingest_rainfall_history
         }
+        Write-Host '      Collecting configured Seoul hydrology APIs...'
+        & $venvPython -m scripts.collect_seoul_hydrology_apis
         & $venvPython -m scripts.build_seoul_resilience
         $profileReady = ($LASTEXITCODE -eq 0)
         $ErrorActionPreference = $previousErrorActionPreference

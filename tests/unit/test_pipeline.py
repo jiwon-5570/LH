@@ -36,3 +36,14 @@ def test_mois_gateway_auth_error_is_explicit():
         assert "SERVICE_ACCESS_DENIED_ERROR" in str(exc)
     else:
         raise AssertionError(json.dumps(payload))
+
+
+def test_rain_gauge_coordinates_become_verified_geometry():
+    frame = pd.DataFrame([
+        {"RF_CD":"101", "RF_NM":"서울 관측소", "LAT":"37.55", "LON":"126.98"}
+    ])
+    valid, quarantine, _ = validate(frame, get_dataset("seoul_rain_gauge_locations"))
+    assert quarantine.empty
+    assert valid.crs.to_epsg() == 4326
+    assert valid.geometry.iloc[0].x == 126.98
+    assert valid.geometry.iloc[0].y == 37.55

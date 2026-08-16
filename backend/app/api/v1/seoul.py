@@ -13,7 +13,11 @@ from backend.app.db.base import (
 )
 from backend.app.db.session import get_db
 from backend.app.schemas.seoul import SeoulComplexSummary, StressTestOut, StressTestRequest
-from backend.app.services.flood_spatial_feature_service import feature_payload
+from backend.app.services.flood_spatial_feature_service import (
+    api_configuration_status,
+    dataset_availability,
+    feature_payload,
+)
 from backend.app.services.seoul_resilience_service import latest_assessments, profile_payload, run_stress_test
 
 router = APIRouter(prefix="/seoul", tags=["Seoul Resilience"])
@@ -114,6 +118,14 @@ def river(complex_id: str, db: Db):
 @router.get("/complexes/{complex_id}/flood-features")
 def flood_features(complex_id: str, db: Db):
     return _flood_feature(complex_id, None, db)
+
+
+@router.get("/hydrology-sources")
+def hydrology_sources():
+    return {
+        "configuration": api_configuration_status(),
+        "availability": dataset_availability(),
+    }
 
 
 @router.get("/high-risk", response_model=list[SeoulComplexSummary])

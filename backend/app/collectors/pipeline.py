@@ -50,6 +50,45 @@ def _rename_aliases(frame: pd.DataFrame, spec: DatasetSpec) -> pd.DataFrame:
                 break
     return frame.rename(columns=rename)
 
+
+def _spatialize(frame: pd.DataFrame, spec: DatasetSpec) -> pd.DataFrame:
+    """Create verified Geometry without inventing coordinates or CRS."""
+    has_coordinates = {"latitude", "longitude"}.issubset(frame.columns)
+    if "geometry" not in spec.required and "geometry" not in frame.columns and not has_coordinates:
+        return frame
+    import geopandas as gpd
+    from shapely import wkt
+    from shapely.geometry import shape
+
+    if "geometry" not in frame.columns and has_coordinates:
+        latitude = pd.to_numeric(frame["latitude"], errors="coerce")
+        longitude = pd.to_numeric(frame["longitude"], errors="coerce")
+        return gpd.GeoDataFrame(
+            frame, geometry=gpd.points_from_xy(longitude, latitude), crs="EPSG:4326"
+        )
+    if "geometry" not in frame.columns:
+        return frame
+
+    def parse(value):
+        if value is None or (isinstance(value, float) and pd.isna(value)):
+            return None
+        if hasattr(value, "geom_type"):
+            return value
+        if isinstance(value, dict):
+            return shape(value)
+        text = str(value).strip()
+        if text.startswith("{"):
+            return shape(json.loads(text))
+        return wkt.loads(text)
+
+    parsed = frame["geometry"].map(parse)
+    source_crs = os.getenv(f"{spec.id.upper()}_SOURCE_CRS", "").strip()
+    if not source_crs:
+        raise ValueError(
+            f"{spec.id} Geometry CRS is unknown; set {spec.id.upper()}_SOURCE_CRS"
+        )
+    return gpd.GeoDataFrame(frame.drop(columns=["geometry"]), geometry=parsed, crs=source_crs)
+
 def _read_json_records(payload: Any) -> list[dict]:
     if isinstance(payload, list):
         return payload
@@ -302,6 +341,7 @@ def fetch_api(spec: DatasetSpec, max_pages: int = 100) -> tuple[pd.DataFrame, by
 
 def validate(frame: pd.DataFrame, spec: DatasetSpec) -> tuple[pd.DataFrame, pd.DataFrame, list[dict]]:
     frame = _rename_aliases(frame, spec).copy()
+    frame = _spatialize(frame, spec)
     checks: list[dict] = []
     missing = [column for column in spec.required if column not in frame.columns]
     if missing: raise ValueError(f"필수 표준 컬럼 누락: {missing}; 실제 컬럼: {list(frame.columns)}")

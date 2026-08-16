@@ -19,3 +19,12 @@ def test_missing_feature_is_explicitly_not_ready():
         "status": "NOT_READY",
         "reason": "flood_spatial_features has not been built",
     }
+
+
+def test_availability_detects_new_api_parquet(tmp_path: Path):
+    target = tmp_path / "data/processed/seoul_river_levels"
+    target.mkdir(parents=True)
+    (target / "api.parquet").write_bytes(b"verified-test-artifact")
+    availability = dataset_availability(tmp_path)
+    assert availability["seoul_river_levels"]["status"] == "AVAILABLE"
+    assert availability["seoul_river_levels"]["file_count"] == 1

@@ -472,7 +472,12 @@
           "\uce68\uc218\ub2e8\uacc4"
         ],
         "geometry": [
-          "geometry"
+          "geometry",
+          "GEOMETRY",
+          "geom",
+          "GEOJSON",
+          "WKT",
+          "SHAPE"
         ]
       }
     },
@@ -524,7 +529,12 @@
           "EST_DT"
         ],
         "geometry": [
-          "geometry"
+          "geometry",
+          "GEOMETRY",
+          "geom",
+          "GEOJSON",
+          "WKT",
+          "SHAPE"
         ]
       }
     },
