@@ -547,15 +547,17 @@ def main() -> None:
                 "dem_coverage": dem_coverage,
                 "rain_availability": 100 if rain else 0,
                 "rain_freshness": 100 if rain_age is not None and rain_age <= 180 else 0,
-                "rain_history_completeness": 0
+                "rainfall_history_availability": 0
                 if rain_history is None
                 else float(rain_history.get("mean_completeness_ratio", 0)) * 100,
                 "sewer_availability": 100 if sewer else 0,
                 "sewer_freshness": 100 if sewer_age is not None and sewer_age <= 180 else 0,
-                "flood_history_availability": 80 if history and history.missing_years else 100 if history else 0,
+                "flood_trace_availability": 80 if history and history.missing_years else 100 if history else 0,
                 "flood_forecast_geometry_availability": 0,
-                "rain_pump_location_availability": 100 if rain_pump else 0,
-                "rain_pump_capacity_availability": 0,
+                "rain_station_location_availability": 0,
+                "pump_station_geometry_availability": 100 if rain_pump else 0,
+                "pump_station_attribute_availability": 0,
+                "river_level_availability": 0,
                 "facility_linkage": 100 if elevator_count else 0,
                 "kapt_linkage": 100 if values["kapt_code"] else 0,
             }
