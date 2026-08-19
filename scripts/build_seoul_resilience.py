@@ -210,7 +210,10 @@ def main() -> None:
         coordinate_ok = coordinate_in_seoul_extent(lat, lon)
         status = "VALIDATED" if coordinate_ok else ("ADDRESS_ONLY" if coordinate_ok is None else "REVIEW_REQUIRED")
         eligible = coordinate_ok is not False
-        district_match = re.search(r"서울(?:특별시|시)\s+([^\s]+구)", str(row["address"]))
+        # LH source addresses use all three forms: 서울특별시, 서울시, and 서울.
+        # Treat the administrative suffix as optional so district-level rainfall
+        # and sewer observations are not dropped solely because of formatting.
+        district_match = re.search(r"서울(?:특별시|시)?\s+([^\s]+구)", str(row["address"]))
         district = district_match.group(1) if district_match else None
         match = pd.DataFrame()
         if not kapt_list.empty:

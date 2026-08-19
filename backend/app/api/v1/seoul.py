@@ -12,12 +12,19 @@ from backend.app.db.base import (
     SeoulComplexProfile,
 )
 from backend.app.db.session import get_db
-from backend.app.schemas.seoul import SeoulComplexSummary, StressTestOut, StressTestRequest
+from backend.app.schemas.seoul import (
+    ScenarioRunRequest,
+    ScenarioRunResponse,
+    SeoulComplexSummary,
+    StressTestOut,
+    StressTestRequest,
+)
 from backend.app.services.flood_spatial_feature_service import (
     api_configuration_status,
     dataset_availability,
     feature_payload,
 )
+from backend.app.services.scenario_service import run_citywide_scenario
 from backend.app.services.seoul_resilience_service import latest_assessments, profile_payload, run_stress_test
 
 router = APIRouter(prefix="/seoul", tags=["Seoul Resilience"])
@@ -141,6 +148,13 @@ def stress_test(payload: StressTestRequest, db: Db):
         return run_stress_test(db, payload.complex_id, payload.rain_change_pct, payload.sewer_change_pct)
     except LookupError as exc:
         raise HTTPException(404, str(exc)) from exc
+
+
+@router.post("/scenarios/run", response_model=ScenarioRunResponse)
+def scenario_run(payload: ScenarioRunRequest, db: Db):
+    if not payload.apply_to_all_complexes and not payload.target_complex_id:
+        raise HTTPException(422, "단일 단지 시나리오는 target_complex_id가 필요합니다")
+    return run_citywide_scenario(db, payload)
 
 
 @router.get("/models")

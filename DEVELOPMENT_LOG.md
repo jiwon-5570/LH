@@ -65,3 +65,11 @@
 - 실제 원본이 없는 4종은 `BLOCKED_BY_DATA`로 유지했다.
 - 상세 FastAPI 6개와 Streamlit 통합 수문 Feature 탭을 연결했다.
 - Flood ML은 필수 검증 조건 미충족으로 학습하지 않았다.
+
+## 2026-08-19 — Realtime and scenario dashboard modes
+
+- 서울 전체 분석 가능 단지에 동일 사용자 시나리오를 적용하는 `scenario_service`를 추가했다.
+- 강우 -50~+200%, 하수·하천 -50~+100% 범위를 검증한다.
+- 실시간 Feature Snapshot을 복사하고 동적 Feature만 변경한 뒤 기후 취약성과 회복력을 재계산한다.
+- 결과를 `USER_SCENARIO`, `composite_scenario`, `scenario-baseline-v1`으로 표시하고 기존 `risk_assessments`는 변경하지 않는다.
+- React 대시보드에 입력 패널, 전후 KPI, 시나리오 지도, 영향 TOP 5를 연결했다.

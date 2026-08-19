@@ -75,7 +75,7 @@ NAV_ITEMS = {
     "단지 관리": ":material/apartment:  단지 회복력 분석",
     "예측 분석": ":material/rainy:  기후재난 분석",
     "설비 관리": ":material/build:  시설 취약도",
-    "AI 안전 관제": ":material/psychology:  AI 안전 관제",
+    "AI Chat": ":material/psychology:  AI Chat",
     "AI 보고서": ":material/description:  AI 회복력 보고서",
     "데이터 관리": ":material/database:  데이터 관리",
     "시스템 설정": ":material/settings:  시스템 설정",
@@ -542,8 +542,8 @@ elif page == "데이터 관리":
     if runs: st.dataframe(pd.DataFrame(runs), hide_index=True, width="stretch", height=520)
     else: st.info("수집 실행 이력이 없습니다.")
     with st.expander("원본 품질 응답"): st.json(quality or {"status":"unavailable", "message":"API 연결 불가"})
-elif page == "AI 안전 관제":
-    st.markdown('<div class="page-heading">AI 안전 관제</div><div class="page-sub">Claude Sonnet이 현재 운영 DB 근거만 사용해 점검 우선순위를 설명합니다.</div>', unsafe_allow_html=True)
+elif page == "AI Chat":
+    st.markdown('<div class="page-heading">AI Chat</div><div class="page-sub">Claude Sonnet이 현재 운영 DB 근거만 사용해 점검 우선순위를 설명합니다.</div>', unsafe_allow_html=True)
     selected = st.selectbox("분석 대상", [None] + complexes, format_func=lambda c: "전체 단지" if c is None else f"{c.get('complex_name')} · {c.get('address')}")
     if "chat_messages" not in st.session_state: st.session_state.chat_messages = []
     for message in st.session_state.chat_messages:

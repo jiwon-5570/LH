@@ -26,6 +26,7 @@ from backend.app.db.base import (
     ReportArtifact,
     SeoulComplexProfile,
     SourceRecord,
+    StressTestRun,
 )
 from backend.app.db.session import get_db
 from backend.app.schemas.common import AlertOut, ComplexOut, PredictionOut
@@ -218,6 +219,7 @@ def models(db: Session = Depends(get_db)):
 class ChatRequest(BaseModel):
     question: str = Field(min_length=1, max_length=2000)
     complex_id: str | None = None
+    scenario_id: str | None = None
 
 @router.post("/ai/chat")
 def ai_chat(payload: ChatRequest, db: Session = Depends(get_db)):
@@ -232,6 +234,18 @@ def ai_chat(payload: ChatRequest, db: Session = Depends(get_db)):
             complex_item=db.get(Complex,payload.complex_id); link=db.get(ComplexDataLink,payload.complex_id)
             if complex_item: context["complex"]={"id":complex_item.complex_id,"name":complex_item.complex_name,"address":complex_item.address}
             if link: context["data_link"]={c.name:getattr(link,c.name) for c in ComplexDataLink.__table__.columns}
+    if payload.scenario_id:
+        scenario_rows = db.scalars(select(StressTestRun).where(StressTestRun.run_id.like(f"{payload.scenario_id}:%"))).all()
+        context["scenario"] = {
+            "notice": "USER_SCENARIO Stress Test 결과이며 실제 미래 예측 또는 재난 발생확률이 아님",
+            "scenario_id": payload.scenario_id,
+            "results": [{"complex_id": x.complex_id, "scenario_name": x.scenario_type,
+                         "base_score": x.base_score, "scenario_score": x.scenario_score,
+                         "scenario_input": x.modified_features.get("scenario_input"),
+                         "source": x.modified_features.get("source"),
+                         "top_changed_factors": x.modified_features.get("top_changed_factors", [])}
+                        for x in scenario_rows[:125]],
+        }
     try:
         from anthropic import Anthropic
         message=Anthropic(api_key=settings.anthropic_api_key).messages.create(model=settings.claude_model,max_tokens=900,system="당신은 LH-PREDICT RESILIENCE — SEOUL 안전 관제 보조자다. 제공된 구조화 JSON 사실만 사용한다. 점수나 확률을 직접 계산하거나 누락값을 추정하지 않는다. 회복력은 composite index, 시설 취약도는 고장확률이 아님을 명시하고 데이터 기준시각·품질·한계를 함께 설명한다.",messages=[{"role":"user","content":f"데이터 컨텍스트: {json.dumps(context, ensure_ascii=False, default=str)}\n\n질문: {payload.question}"}])

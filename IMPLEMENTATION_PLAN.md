@@ -54,3 +54,12 @@ Day 1 구조·정직성 게이트, Day 2 DB/API, Day 3~6 실제 수집·매칭, 
 - [x] Six FastAPI detail endpoints and Streamlit evidence tab
 - [ ] Flood forecast, rain-gauge location, pump attributes, river levels: `BLOCKED_BY_DATA`
 - [ ] Exact Seoul boundary, 100m grid, negative-sample policy, spatial ML split: `NOT_READY`
+
+## Realtime / Scenario dashboard (2026-08-19)
+
+- [x] 실시간/시나리오 모드 전환 UI
+- [x] 입력 검증 및 서울 전체 단지 일괄 재계산 API
+- [x] 정적 Feature 재사용, 동적 강우·하수·하천 Feature만 변경
+- [x] 실시간 평가와 분리된 `stress_test_runs` 영속화
+- [x] 시나리오 KPI, NAVER 지도 점수, 영향 TOP 5 연결
+- [ ] 검증 Flood ML 확보 후 scenario inference로 승격

@@ -480,3 +480,17 @@ API URL은 서울 열린데이터광장 상세 페이지의 실제 서비스명�
 최근 성공 파일이 설정 간격 이내면 재수집을 건너뛰어 디스크 증가와 API 호출을 줄입니다. 즉시 강제 갱신하려면 명령 끝에 `--force`를 붙입니다.
 
 설정 및 적재 상태는 `GET /api/v1/seoul/hydrology-sources`에서 키 값을 노출하지 않고 확인할 수 있습니다. `floodingDs`는 실제 검증 결과 2,094개의 단계 속성을 반환하지만 Geometry는 반환하지 않으므로 `PARTIAL_NO_GEOMETRY`로 관리하며, 공간파일과 `space_id`로 결합되기 전에는 침수예상 면적비를 계산하지 않습니다.
+
+## 실시간 모드와 시나리오 모드
+
+- **실시간 모드**는 DB에 적재된 최신 공공데이터와 기존 `risk_assessments`만 표시합니다.
+- **시나리오 모드**는 실제 단지·DEM·침수이력·배수시설·시설정보를 고정하고 사용자가 입력한 강우·하수관·하천 수위 변화율만 적용하는 Stress Test입니다.
+- 입력은 `scenario_input=true`, `source=USER_SCENARIO`로 구분되어 `stress_test_runs`에 별도 저장되며 실시간 평가를 덮어쓰지 않습니다.
+- 결과는 `scenario-baseline-v1` 복합 취약도 지수이며 실제 미래 재난 발생확률이나 기상예보가 아닙니다.
+
+```http
+POST /api/v1/seoul/scenarios/run
+Content-Type: application/json
+
+{"rain_change_pct":50,"sewer_change_pct":20,"river_change_pct":10,"apply_to_all_complexes":true}
+```
