@@ -1,10 +1,27 @@
 from pathlib import Path
 
+import geopandas as gpd
+import pandas as pd
+from shapely.geometry import Point
+
 from backend.app.services.flood_spatial_feature_service import (
     CANONICAL_DATASETS,
+    _pump_capacity,
     dataset_availability,
     feature_payload,
 )
+
+
+def test_pump_capacity_joins_string_and_numeric_official_ids():
+    pumps = gpd.GeoDataFrame(
+        {"pump_id": ["12"], "pump_name": ["테스트펌프장"]},
+        geometry=[Point(0, 0)],
+        crs="EPSG:5179",
+    )
+    attributes = pd.DataFrame(
+        {"pump_station_id": [12.0], "pump_station_name": ["테스트펌프장"], "pump_capacity": [42.5]}
+    )
+    assert _pump_capacity(pumps, attributes, Point(10, 0))["nearby_total_pump_capacity_1km"] == 42.5
 
 
 def test_availability_never_invents_missing_sources(tmp_path: Path):

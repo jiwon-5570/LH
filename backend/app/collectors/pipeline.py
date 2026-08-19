@@ -157,7 +157,11 @@ def read_file(path: Path, spec: DatasetSpec):
             try: return pd.read_csv(path, encoding=encoding, dtype="string")
             except UnicodeDecodeError: continue
         raise ValueError("CSV 인코딩을 판별할 수 없습니다")
-    if suffix in {"xlsx", "xls"}: return pd.read_excel(path, dtype="string")
+    if suffix in {"xlsx", "xls"}:
+        # The official Seoul rain-gauge workbook has a blank title row and its
+        # actual column names on the second row.
+        header = 1 if spec.id == "seoul_rain_gauge_locations" else 0
+        return pd.read_excel(path, header=header, dtype="string")
     if suffix == "json": return pd.DataFrame(_read_json_records(json.loads(path.read_text(encoding="utf-8-sig"))))
     if suffix == "zip" and spec.domain == "terrain":
         extract_dir = path.parent / f"{path.stem}_extracted"
@@ -341,6 +345,18 @@ def fetch_api(spec: DatasetSpec, max_pages: int = 100) -> tuple[pd.DataFrame, by
 
 def validate(frame: pd.DataFrame, spec: DatasetSpec) -> tuple[pd.DataFrame, pd.DataFrame, list[dict]]:
     frame = _rename_aliases(frame, spec).copy()
+    if spec.id == "seoul_rain_gauge_locations" and {"station_id", "started_at"}.issubset(frame.columns):
+        # The source contains every relocation history. Operational proximity
+        # features need exactly the latest known location for each station.
+        frame = frame.dropna(how="all")
+        frame["started_at"] = pd.to_datetime(frame["started_at"], errors="coerce")
+        if "ended_at" in frame:
+            frame["ended_at"] = pd.to_datetime(frame["ended_at"], errors="coerce")
+        frame = (
+            frame.sort_values(["station_id", "started_at"], na_position="first")
+            .drop_duplicates("station_id", keep="last")
+            .reset_index(drop=True)
+        )
     frame = _spatialize(frame, spec)
     checks: list[dict] = []
     missing = [column for column in spec.required if column not in frame.columns]
@@ -359,6 +375,7 @@ def validate(frame: pd.DataFrame, spec: DatasetSpec) -> tuple[pd.DataFrame, pd.D
         "lh_complexes": ("complex_id",),
         "molit_complex_list": ("kapt_code",),
         "elevator_installations": ("elevator_id",),
+        "seoul_rain_gauge_locations": ("station_id",),
     }.get(spec.id, ())
     for identity in unique_identities:
         if identity in frame:
@@ -391,15 +408,23 @@ def _persist_valid_records(db, valid: pd.DataFrame, spec: DatasetSpec, run_id: s
         return
     valid = valid.tail(sample_limit)
     identity_columns = [column for column in ("complex_id", "kapt_code", "elevator_id", "inspection_history_code", "sensor_id", "station_id", "address") if column in valid.columns]
-    batch: list[dict] = []
     for ordinal, row in enumerate(valid.to_dict(orient="records")):
         natural_id = "|".join(str(row[column]) for column in identity_columns) if identity_columns else "row"
         source_id = f"{natural_id}|{ordinal}"
         key = hashlib.sha256(f"{spec.id}|{source_id}|{version}".encode()).hexdigest()
-        batch.append({"source_record_key":key,"dataset_id":spec.id,"source_record_id":source_id,"collection_run_id":run_id,"payload":_record_payload(row),"data_version":version,"validation_status":"valid","collected_at":collected_at})
-        if len(batch) >= 5000:
-            db.bulk_insert_mappings(SourceRecord, batch); batch.clear()
-    if batch: db.bulk_insert_mappings(SourceRecord, batch)
+        # A source snapshot may be collected repeatedly with the same content hash.
+        # Merge the bounded preview sample so reruns refresh metadata instead of
+        # failing the whole collection on the primary-key constraint.
+        db.merge(SourceRecord(
+            source_record_key=key,
+            dataset_id=spec.id,
+            source_record_id=source_id,
+            collection_run_id=run_id,
+            payload=_record_payload(row),
+            data_version=version,
+            validation_status="valid",
+            collected_at=collected_at,
+        ))
     if spec.id == "lh_complexes":
         for row in valid.to_dict(orient="records"):
             db.merge(Complex(complex_id=str(row["complex_id"]),complex_name=str(row["complex_name"]),address=str(row["address"]),latitude=None if pd.isna(row.get("latitude")) else float(row["latitude"]),longitude=None if pd.isna(row.get("longitude")) else float(row["longitude"]),source_name=spec.name,source_url=None,collected_at=collected_at,observed_at=None,data_version=version,validation_status="valid",collection_run_id=run_id))

@@ -1,5 +1,21 @@
 # LH-PREDICT RESILIENCE — SEOUL
 
+## React 운영 UI
+
+운영 화면은 Streamlit에서 **React + TypeScript + Vite**로 전환되었습니다. FastAPI, SQLite/PostgreSQL, GIS 처리 및 AI 파이프라인은 기존 Python 구현을 그대로 사용합니다.
+
+```powershell
+# FastAPI와 React 개발 서버를 한 번에 실행하고 브라우저를 엽니다.
+.\run.cmd
+```
+
+- React 대시보드: `http://127.0.0.1:8501`
+- FastAPI 문서: `http://127.0.0.1:8000/docs`
+- React 소스: `web/src`
+- 프로덕션 빌드: `cd web; npm.cmd run build`
+
+상세 근거 보기는 브라우저 상태로 즉시 열리며, Streamlit처럼 전체 Python 스크립트를 다시 실행하지 않습니다. NAVER 지도에는 브라우저 공개용 Client ID만 전달되고 Client Secret 및 기타 API 키는 백엔드 `.env`에만 유지됩니다.
+
 > 서울 소재 LH 공동주택의 기후·시설 취약성과 재난회복력을 실제 공공데이터로 설명하는 의사결정 지원 플랫폼
 
 전국 3,183개 LH 단지는 Master로 보존하고, 주소 정규화와 좌표 검증을 통과한 서울 단지만 분석합니다. 현재 실제 서울 Master는 125개이며 좌표·DEM 검증 완료 72개, 주소 확인·좌표 미확보 53개입니다. 숫자는 코드에 고정하지 않고 Profile 빌드 결과로 계산됩니다.
@@ -15,7 +31,7 @@
 - 고위험 예측과 경보 확인 처리
 - 수집 데이터 품질 및 출처·기준시각 추적
 - 검증 완료 모델만 운영에 사용하는 배포 게이트
-- NAVER Maps 기반 Streamlit 운영 대시보드
+- NAVER Maps 기반 React 운영 대시보드
 - 실제 단지 CSV 검증·적재 및 부적합 행 격리
 
 ## 2. 현재 구현 상태
@@ -24,7 +40,7 @@
 |---|---|---|
 | FastAPI | 구현 | health, 단지, 예측, 경보, 데이터 품질, 모델 API |
 | PostgreSQL/PostGIS | 기반 구현 | Docker Compose 제공. 개발 기본값은 SQLite |
-| Streamlit | 구현 | 무데이터·API 장애 상태를 포함한 운영 화면 |
+| React + TypeScript + Vite | 구현 | 무데이터·API 장애 상태를 포함한 운영 화면 |
 | NAVER Maps | 구현 | 검증 좌표만 전달하며 키 미설정 시 표 형태 fallback |
 | 단지 CSV 수집 | 구현 | 필수 컬럼, 좌표 범위, 주소, ID 중복 검증 |
 | 모델 학습 골격 | 구현 | 시간순 분할, ROC-AUC, PR-AUC, Brier Score 저장 |
@@ -108,7 +124,7 @@ API 키만으로 접근할 수 없는 기관 내부 유지보수·고장 이력�
 ## 6. 시스템 구성
 
 ```text
-Streamlit/NAVER Maps
+React/NAVER Maps
         │ HTTP
         ▼
 FastAPI ── SQLAlchemy ── PostgreSQL/PostGIS
@@ -131,7 +147,7 @@ backend/app/
   schemas/      Pydantic 응답 모델
   services/     모델 운영 준비도 검사
 frontend/
-  app.py        Streamlit 포털
+  app.py        레거시 Streamlit 포털(기본 실행에서 제외)
   api_client.py Backend API 클라이언트
   components/   NAVER 지도 등 UI 구성요소
 data/           raw/staging/processed/quarantine
@@ -153,7 +169,7 @@ tests/          단위·통합·E2E 테스트 영역
 
 ### 한 번에 실행하기(Windows PowerShell)
 
-프로젝트 폴더에서 다음 명령 하나만 실행하면 가상환경과 의존성을 준비하고 FastAPI와 Streamlit을 함께 시작합니다.
+프로젝트 폴더에서 다음 명령 하나만 실행하면 가상환경과 의존성을 준비하고 FastAPI와 React를 함께 시작합니다.
 
 ```powershell
 .\run.cmd
@@ -195,7 +211,7 @@ streamlit run app.py --server.headless true
 |---|---|---|
 | `APP_ENV` | 실행 환경 | 항상 |
 | `DATABASE_URL` | SQLAlchemy DB 연결 | 항상 |
-| `FRONTEND_API_URL` | Streamlit의 Backend 주소 | 항상 |
+| `FRONTEND_API_URL` | 레거시 Streamlit의 Backend 주소 | 레거시 UI 사용 시 |
 | `NAVER_MAP_CLIENT_ID` | NAVER Maps JavaScript API v3 | 지도 활성화 |
 | `NAVER_MAP_CLIENT_SECRET` | NAVER Maps 서버 API 인증키(Client Secret) | 지오코딩 등 서버 API 사용 시 |
 | `DATA_GO_KR_SERVICE_KEY` | 공공데이터포털 API | 해당 수집기 사용 |
@@ -220,7 +236,18 @@ MOIS_FLOOD_TRACE_API_URL=https://www.safetydata.go.kr/V2/api/DSSP-IF-00117
 .\.venv\Scripts\python.exe -m scripts.ingest_mois_flood_trace_api
 ```
 
-해당 API의 공식 출력항목은 일련번호(`SN`)와 침수수심(`FLDN_DOWA`)이며 공간 도형은 포함하지 않습니다. 따라서 API 결과는 `data/processed/mois_flood_trace_api`에 속성 데이터로 보존하고, 침수영역 라벨 생성에는 별도 SHP/GPKG/GeoJSON 공간파일을 사용합니다.
+실제 승인 API 응답에는 일련번호(`SN`), 침수수심(`FLDN_DOWA`)과 Web Mercator WKT 도형(`GEOM`)이 함께 제공됩니다. 수집 결과는 `data/processed/mois_flood_trace_api`에 원본 속성 Parquet으로 보존하고, 서울 시도코드와 공간 범위를 모두 검증한 도형만 EPSG:5179로 변환하여 `data/processed/seoul_flood_trace/seoul_flood_trace.parquet`에 기존 연도별 공간파일과 통합합니다. 중복은 연도+정확한 geometry hash로 제거하며 행 순서로 결합하지 않습니다.
+
+```powershell
+# API 전체 수집 + 서울 공간자료 통합
+.\.venv\Scripts\python.exe -m scripts.ingest_mois_flood_trace_api
+
+# 이미 수집한 최신 API 캐시로 통합만 재실행
+.\.venv\Scripts\python.exe -m scripts.ingest_mois_flood_trace_api --skip-collect
+
+# 파일자료 → MOIS API → 단지별 100/300/500m 근거 Feature 전체 재생성
+.\.venv\Scripts\python.exe -m scripts.build_seoul_hydrology
+```
 | `CLAUDE_MODEL` | 사용할 Claude 모델명(현재 `claude-sonnet-5`) | AI 기능 활성화 |
 | `BASIC_AUTH_USERNAME/PASSWORD` | 인증 연동용 | 운영 배포 |
 
@@ -378,7 +405,7 @@ docker compose ps
 
 - PostgreSQL/PostGIS: 내부 `5432`
 - FastAPI: `8000`
-- Streamlit: `8501`
+- React(Vite): `8501`
 
 운영 배포 전 DB 기본 비밀번호를 반드시 변경하고 TLS와 reverse proxy 인증을 적용합니다.
 
@@ -427,26 +454,29 @@ pytest
 
 ### 서울 수문 API 키 입력 및 수집
 
-`.env`에서 아래 값을 채웁니다. 네 데이터셋은 서로 다른 인증키를 사용할 수 있습니다.
+`.env`에서 아래 값을 채웁니다. 세 OpenAPI 데이터셋은 서로 다른 인증키를 사용할 수 있으며, 강우량계 위치정보는 공식 FILE 전용 데이터셋입니다.
 
 ```dotenv
 SEOUL_FLOOD_FORECAST_MAP_API_KEY=
 SEOUL_FLOOD_FORECAST_MAP_API_URL=http://openapi.seoul.go.kr:8088/{key}/json/floodingDs/{start}/{end}/
 
-SEOUL_RAIN_GAUGE_LOCATION_API_KEY=
-SEOUL_RAIN_GAUGE_LOCATION_API_URL=
+SEOUL_RAIN_GAUGE_LOCATION_FILE_URL=https://data.seoul.go.kr/dataList/OA-22824/F/1/datasetView.do
 
 SEOUL_PUMP_STATION_ATTRIBUTE_API_KEY=
-SEOUL_PUMP_STATION_ATTRIBUTE_API_URL=
+SEOUL_PUMP_STATION_ATTRIBUTE_API_URL=http://openapi.seoul.go.kr:8088/{key}/json/Drps/{start}/{end}/
 
 SEOUL_RIVER_LEVEL_API_KEY=
-SEOUL_RIVER_LEVEL_API_URL=
+SEOUL_RIVER_LEVEL_API_URL=http://openapi.seoul.go.kr:8088/{key}/json/ListRiverStageService/{start}/{end}/
+
+HYDROLOGY_COLLECTION_MIN_INTERVAL_MINUTES=60
 ```
 
-URL은 서울 열린데이터광장 상세 페이지의 실제 서비스명을 사용한 `{key}/{start}/{end}` 템플릿으로 입력합니다. 키 값은 따옴표 없이 입력합니다. 이후 다음 명령 하나로 설정된 API만 수집하고 단지 Feature를 갱신합니다.
+API URL은 서울 열린데이터광장 상세 페이지의 실제 서비스명을 사용한 `{key}/{start}/{end}` 템플릿입니다. 키 값만 따옴표 없이 입력합니다. 강우량계 위치 파일은 내려받은 뒤 `seoul_rain_gauge_locations` Dataset ID로 적재합니다. 이후 다음 명령 하나로 설정된 API만 수집하고 단지 Feature를 갱신합니다.
 
 ```powershell
 .\.venv\Scripts\python.exe -m scripts.collect_seoul_hydrology_apis
 ```
+
+최근 성공 파일이 설정 간격 이내면 재수집을 건너뛰어 디스크 증가와 API 호출을 줄입니다. 즉시 강제 갱신하려면 명령 끝에 `--force`를 붙입니다.
 
 설정 및 적재 상태는 `GET /api/v1/seoul/hydrology-sources`에서 키 값을 노출하지 않고 확인할 수 있습니다. `floodingDs`는 실제 검증 결과 2,094개의 단계 속성을 반환하지만 Geometry는 반환하지 않으므로 `PARTIAL_NO_GEOMETRY`로 관리하며, 공간파일과 `space_id`로 결합되기 전에는 침수예상 면적비를 계산하지 않습니다.

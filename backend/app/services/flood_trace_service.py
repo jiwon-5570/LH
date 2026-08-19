@@ -11,7 +11,7 @@ from pathlib import Path
 
 import geopandas as gpd
 import pandas as pd
-from shapely import make_valid
+from shapely import make_valid, wkt
 from shapely.geometry import box
 
 
@@ -121,6 +121,110 @@ def consolidate_flood_traces(source_paths: list[Path], output_dir: Path) -> dict
         "source_years": sorted(int(value) for value in canonical["event_year"].dropna().unique()),
         "crs": "EPSG:5179", "geometry_types": sorted(canonical.geom_type.unique().tolist()),
         "output_path": str(output_path), "processed_at": datetime.now(UTC).isoformat(),
+    }
+    output_path.with_suffix(".metadata.json").write_text(
+        json.dumps(metadata, ensure_ascii=False, indent=2), encoding="utf-8"
+    )
+    return metadata
+
+
+def consolidate_mois_api_flood_traces(
+    api_path: Path,
+    existing_canonical_path: Path | None,
+    output_dir: Path,
+) -> dict:
+    """Combine the MOIS API geometry/depth with the canonical Seoul layer.
+
+    The safetydata endpoint returns Web-Mercator WKT in ``GEOM``.  We only
+    accept records whose province code is Seoul and whose geometry intersects
+    the operational Seoul bounding envelope.  Existing file data wins on an
+    exact year/geometry duplicate; API records enrich the time series without
+    ever joining by row order.
+    """
+    raw = pd.read_parquet(api_path)
+    required = {"GEOM", "STDG_CTPV_CD", "FLDN_YR", "flood_depth", "trace_serial_number"}
+    missing = sorted(required - set(raw.columns))
+    if missing:
+        raise ValueError(f"MOIS flood-trace API columns missing: {missing}")
+
+    seoul = raw.loc[raw["STDG_CTPV_CD"].astype(str).str.zfill(2).eq("11")].copy()
+    seoul["geometry"] = seoul["GEOM"].map(
+        lambda value: None if pd.isna(value) or not str(value).strip() else wkt.loads(str(value))
+    )
+    api = gpd.GeoDataFrame(seoul, geometry="geometry", crs="EPSG:3857")
+    missing_geometry = api.geometry.isna() | api.geometry.is_empty
+    invalid_before = ~api.geometry.is_valid & ~missing_geometry
+    api.loc[invalid_before, "geometry"] = api.loc[invalid_before, "geometry"].map(make_valid)
+    invalid_after = api.geometry.isna() | api.geometry.is_empty | ~api.geometry.is_valid
+    api = api.loc[~invalid_after].to_crs("EPSG:5179").copy()
+    seoul_bbox = gpd.GeoSeries(
+        [box(126.734, 37.413, 127.270, 37.715)], crs="EPSG:4326"
+    ).to_crs("EPSG:5179").iloc[0]
+    outside_seoul = ~api.geometry.intersects(seoul_bbox)
+    api = api.loc[~outside_seoul].copy()
+
+    collected_at = pd.to_datetime(api.get("collected_at"), errors="coerce", utc=True)
+    api_canonical = gpd.GeoDataFrame(
+        {
+            "flood_trace_id": api["trace_serial_number"].map(lambda value: f"mois-api-{value}"),
+            "event_year": pd.to_numeric(api["FLDN_YR"], errors="coerce").astype("Int64"),
+            "event_date": pd.to_datetime(api.get("FLDN_BGNG_YMD"), format="%Y%m%d", errors="coerce"),
+            "flood_depth": pd.to_numeric(api["flood_depth"], errors="coerce"),
+            "district": api.get("STDG_SGG_CD", pd.Series(pd.NA, index=api.index)).astype("string"),
+            "geometry": api.geometry,
+            "source_name": "행정안전부 침수흔적도 API",
+            "source_file": api_path.name,
+            "data_version": api.get("data_version", pd.Series(_sha256(api_path), index=api.index)),
+            "processed_at": collected_at.fillna(pd.Timestamp.now(tz="UTC")),
+            "validation_status": "VALID",
+            "geometry_repaired": invalid_before.reindex(api.index, fill_value=False),
+            "trace_serial_number": api["trace_serial_number"].astype("string"),
+            "flood_grade": pd.to_numeric(api.get("FLDN_GRD"), errors="coerce"),
+            "flood_area_source_m2": pd.to_numeric(api.get("FLDN_AREA"), errors="coerce"),
+            "flood_cause": api.get("FLDN_CS_DTL_NM", pd.Series(pd.NA, index=api.index)),
+        },
+        geometry="geometry",
+        crs="EPSG:5179",
+    )
+
+    frames: list[gpd.GeoDataFrame] = []
+    if existing_canonical_path and existing_canonical_path.exists():
+        existing = gpd.read_parquet(existing_canonical_path).to_crs("EPSG:5179")
+        existing["source_priority"] = 0
+        frames.append(existing)
+    api_canonical["source_priority"] = 1
+    frames.append(api_canonical)
+    combined = gpd.GeoDataFrame(pd.concat(frames, ignore_index=True), geometry="geometry", crs="EPSG:5179")
+    identity = (
+        combined["event_year"].astype("Int64").astype(str)
+        + "|"
+        + combined.geometry.map(lambda geometry: hashlib.sha256(geometry.wkb).hexdigest())
+    )
+    combined["_identity"] = identity
+    combined = combined.sort_values("source_priority").drop_duplicates("_identity", keep="first")
+    combined = combined.drop(columns=["source_priority", "_identity"])
+
+    output_dir.mkdir(parents=True, exist_ok=True)
+    output_path = output_dir / "seoul_flood_trace.parquet"
+    combined.to_parquet(output_path, index=False)
+    metadata = {
+        "status": "COMPLETE",
+        "api_input_records": len(raw),
+        "api_seoul_code_records": len(seoul),
+        "api_valid_seoul_geometry_records": len(api_canonical),
+        "api_missing_geometry_records": int(missing_geometry.sum()),
+        "api_invalid_geometry_records": int(invalid_after.sum()),
+        "api_outside_seoul_bbox_records": int(outside_seoul.sum()),
+        "existing_records": 0 if not frames[:-1] else len(frames[0]),
+        "output_features": len(combined),
+        "duplicate_features_removed": sum(len(frame) for frame in frames) - len(combined),
+        "source_years": sorted(int(value) for value in combined["event_year"].dropna().unique()),
+        "depth_unit": "m",
+        "api_source_crs": "EPSG:3857",
+        "output_crs": "EPSG:5179",
+        "join_method": "year_and_exact_geometry_hash; existing file wins",
+        "output_path": str(output_path),
+        "processed_at": datetime.now(UTC).isoformat(),
     }
     output_path.with_suffix(".metadata.json").write_text(
         json.dumps(metadata, ensure_ascii=False, indent=2), encoding="utf-8"

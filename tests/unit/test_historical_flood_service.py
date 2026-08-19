@@ -8,7 +8,7 @@ from backend.app.services.historical_flood_service import analyze_complex, histo
 
 def test_historical_buffers_and_years_use_metric_crs():
     traces = gpd.GeoDataFrame(
-        {"source_year":[2022, 2024]},
+        {"source_year":[2022, 2024], "flood_depth": [0.8, 1.2]},
         geometry=[box(953850, 1951750, 953950, 1951850), box(954200, 1951750, 954250, 1951800)],
         crs="EPSG:5179",
     )
@@ -18,6 +18,8 @@ def test_historical_buffers_and_years_use_metric_crs():
     assert result["hit_years_point"] == [2022]
     assert result["hit_years_500m"] == [2022, 2024]
     assert result["overlap_ratio_100m"] > 0
+    assert result["flood_depth_100m"] == {"count": 1, "max_m": 0.8, "mean_m": 0.8}
+    assert result["flood_depth_500m"]["max_m"] == 1.2
 
 
 def test_historical_index_is_explicit_proximity_not_probability():

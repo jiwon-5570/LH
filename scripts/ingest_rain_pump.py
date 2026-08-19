@@ -41,6 +41,12 @@ def main() -> None:
         db.execute(delete(RainPumpProximityFeature))
         for profile in profiles:
             values = analyze_complex(pumps, float(profile.longitude), float(profile.latitude))
+            # 500 m/2 km counts live in the unified FloodSpatialFeature table;
+            # only persist fields declared by this legacy proximity table.
+            values = {
+                key: value for key, value in values.items()
+                if key in RainPumpProximityFeature.__table__.columns
+            }
             db.add(RainPumpProximityFeature(
                 rain_pump_proximity_feature_id=uuid.uuid4().hex,
                 complex_id=profile.complex_id,

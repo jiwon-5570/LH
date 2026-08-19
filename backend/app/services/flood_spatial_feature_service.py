@@ -30,8 +30,8 @@ CANONICAL_DATASETS = (
 )
 
 API_DATASETS = (
+    "mois_flood_trace_api",
     "seoul_flood_forecast_geometry",
-    "seoul_rain_gauge_locations",
     "seoul_pump_station_attributes",
     "seoul_river_levels",
 )
@@ -120,7 +120,26 @@ def _pump_capacity(pumps: gpd.GeoDataFrame | None, attributes: pd.DataFrame | No
     id_column = "pump_station_id" if "pump_station_id" in attributes else "pump_id"
     pump_id_column = "pump_id" if "pump_id" in pumps else "pump_station_id"
     if id_column in attributes and pump_id_column in pumps:
-        merged = pumps.merge(attributes, left_on=pump_id_column, right_on=id_column, how="left")
+        # Seoul spatial files and OpenAPI attributes encode the same identifiers
+        # with different dtypes (for example "12" versus 12.0). Normalize both
+        # sides before joining so a valid API ingestion cannot break feature builds.
+        left = pumps.assign(
+            _pump_join_id=pumps[pump_id_column].astype("string").str.strip().str.replace(r"\.0$", "", regex=True)
+        )
+        right = attributes.assign(
+            _pump_join_id=attributes[id_column].astype("string").str.strip().str.replace(r"\.0$", "", regex=True)
+        )
+        merged = left.merge(right, on="_pump_join_id", how="left")
+        # Some official releases use unrelated serial-number systems. In that
+        # case the facility name is the verified cross-release key.
+        if (
+            ("pump_capacity" not in merged or merged["pump_capacity"].isna().all())
+            and "pump_name" in pumps
+            and "pump_station_name" in attributes
+        ):
+            left = pumps.assign(_join=pumps["pump_name"].astype(str).str.replace(" ", ""))
+            right = attributes.assign(_join=attributes["pump_station_name"].astype(str).str.replace(" ", ""))
+            merged = left.merge(right, on="_join", how="left")
     elif "pump_name" in pumps and "pump_station_name" in attributes:
         merged = pumps.assign(_join=pumps["pump_name"].astype(str).str.replace(" ", ""))
         attrs = attributes.assign(_join=attributes["pump_station_name"].astype(str).str.replace(" ", ""))
@@ -135,7 +154,9 @@ def _pump_capacity(pumps: gpd.GeoDataFrame | None, attributes: pd.DataFrame | No
 
 
 def dataset_availability(root: Path = ROOT) -> dict[str, dict]:
-    flood = _files(root / "data/processed/mois_flood_trace", "*.parquet")
+    flood = _files(root / "data/processed/seoul_flood_trace", "*.parquet")
+    if not flood:
+        flood = _files(root / "data/processed/mois_flood_trace", "*.parquet")
     pump = _files(root / "data/processed/seoul_rain_pump", "*.parquet")
     rain = _files(root / "data/processed/seoul_rainfall_history", "**/*.parquet")
     rain = [path for path in rain if path.name != "station_year_statistics.parquet"]
@@ -174,7 +195,9 @@ def dataset_availability(root: Path = ROOT) -> dict[str, dict]:
 
 def build_flood_spatial_features(db: Session, root: Path = ROOT) -> dict:
     availability = dataset_availability(root)
-    flood_paths = _files(root / "data/processed/mois_flood_trace", "*.parquet")
+    flood_paths = _files(root / "data/processed/seoul_flood_trace", "*.parquet")
+    if not flood_paths:
+        flood_paths = _files(root / "data/processed/mois_flood_trace", "*.parquet")
     pump_paths = _files(root / "data/processed/seoul_rain_pump", "*.parquet")
     floods = load_flood_traces(flood_paths) if flood_paths else None
     pumps = gpd.read_parquet(pump_paths[-1]).to_crs("EPSG:5179") if pump_paths else None
@@ -205,6 +228,18 @@ def build_flood_spatial_features(db: Session, root: Path = ROOT) -> dict:
             statuses["complex_coordinates"] = "AVAILABLE"
         available_count = sum(value == "AVAILABLE" for key, value in statuses.items() if key != "complex_coordinates")
         quality = "COMPLETE" if available_count == len(CANONICAL_DATASETS) else "PARTIAL"
+        feature_metadata = {**availability}
+        feature_metadata["historical_flood_evidence"] = {
+            "nearest_trace_distance_m": history.get("nearest_trace_distance_m"),
+            "hit_years_point": history.get("hit_years_point", []),
+            "hit_years_100m": history.get("hit_years_100m", []),
+            "hit_years_300m": history.get("hit_years_300m", []),
+            "hit_years_500m": history.get("hit_years_500m", []),
+            "depth_100m": history.get("flood_depth_100m"),
+            "depth_300m": history.get("flood_depth_300m"),
+            "depth_500m": history.get("flood_depth_500m"),
+            "depth_unit": "m",
+        }
         db.add(FloodSpatialFeature(
             complex_id=profile.complex_id,
             historical_flood_overlap=history.get("intersects_trace"),
@@ -230,7 +265,7 @@ def build_flood_spatial_features(db: Session, root: Path = ROOT) -> dict:
             nearest_river_station_id=river_station.get("id"),
             river_station_distance_m=river_station.get("distance_m"),
             dataset_statuses=statuses,
-            source_metadata=availability,
+            source_metadata=feature_metadata,
             data_version=version,
             processed_at=now,
             data_quality_status=quality if has_coordinates else "INSUFFICIENT",
@@ -270,6 +305,8 @@ def feature_payload(item: FloodSpatialFeature | None, section: str | None = None
     filtered["datasets"] = {
         key: item.source_metadata.get(key, {}) for key in dataset_map[section]
     }
+    if section == "flood-history":
+        filtered["evidence"] = item.source_metadata.get("historical_flood_evidence", {})
     filtered["data_quality_status"] = item.data_quality_status
     filtered["processed_at"] = item.processed_at
     return filtered

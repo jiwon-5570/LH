@@ -740,7 +740,7 @@
     {
       "id": "seoul_rain_gauge_locations",
       "name": "\uc11c\uc6b8\ud2b9\ubcc4\uc2dc \uac15\uc6b0\ub7c9\uacc4 \uc704\uce58\uc815\ubcf4",
-      "mode": "file_or_api",
+      "mode": "file",
       "formats": [
         "csv",
         "xlsx",
@@ -749,8 +749,7 @@
         "shp",
         "zip"
       ],
-      "api_url_env": "SEOUL_RAIN_GAUGE_LOCATION_API_URL",
-      "api_key_env": "SEOUL_RAIN_GAUGE_LOCATION_API_KEY",
+      "source_url_env": "SEOUL_RAIN_GAUGE_LOCATION_FILE_URL",
       "domain": "rain_gauge_location",
       "required": [
         "station_id",
@@ -761,24 +760,45 @@
         "station_id": [
           "station_id",
           "RAINGAUGE_CODE",
-          "RF_CD"
+          "RF_CD",
+          "지점"
         ],
         "station_name": [
           "station_name",
           "RAINGAUGE_NAME",
-          "RF_NM"
+          "RF_NM",
+          "지점명"
         ],
         "district": [
           "district",
-          "GU_NM"
+          "GU_NM",
+          "관리관서"
         ],
         "latitude": [
           "latitude",
-          "LAT"
+          "LAT",
+          "위도"
         ],
         "longitude": [
           "longitude",
-          "LON"
+          "LON",
+          "경도"
+        ],
+        "address": [
+          "address",
+          "지점주소"
+        ],
+        "started_at": [
+          "started_at",
+          "시작일"
+        ],
+        "ended_at": [
+          "ended_at",
+          "종료일"
+        ],
+        "elevation_m": [
+          "elevation_m",
+          "노장해발고도(m)"
         ],
         "geometry": [
           "geometry"
@@ -804,29 +824,39 @@
       "aliases": {
         "pump_station_id": [
           "pump_station_id",
-          "PUMP_ID"
+          "PUMP_ID",
+          "SN",
+          "RVR_BSC_PLAN_CD"
         ],
         "pump_station_name": [
           "pump_station_name",
-          "PUMP_NM"
+          "PUMP_NM",
+          "FCLTY_NM"
         ],
         "drainage_area": [
-          "drainage_area"
+          "drainage_area",
+          "DRAR"
         ],
         "pump_capacity": [
-          "pump_capacity"
+          "pump_capacity",
+          "PUMP_SPCFCT",
+          "DRGF_MAX_DRG_QTY"
         ],
         "pump_count": [
           "pump_count"
         ],
         "design_capacity": [
-          "design_capacity"
+          "design_capacity",
+          "DRGG_SPCFCT"
         ],
         "operating_level": [
-          "operating_level"
+          "operating_level",
+          "BGNG_IHL_WATL",
+          "RSRVR_EL_LWL"
         ],
         "warning_level": [
-          "warning_level"
+          "warning_level",
+          "RSRVR_EL_HWL"
         ]
       }
     },
@@ -851,27 +881,35 @@
       "aliases": {
         "river_station_id": [
           "river_station_id",
-          "STATION_ID"
+          "STATION_ID",
+          "WATG_CD"
         ],
         "river_station_name": [
           "river_station_name",
-          "STATION_NAME"
+          "STATION_NAME",
+          "WATG_NM"
         ],
         "river_name": [
           "river_name",
-          "RIVER_NAME"
+          "RIVER_NAME",
+          "RVR_NM"
         ],
         "district": [
           "district",
-          "GU_NM"
+          "GU_NM",
+          "GU_OFC_NM",
+          "STDG_SGG_CD"
         ],
         "observed_at": [
           "observed_at",
-          "MSRMT_YMD"
+          "MSRMT_YMD",
+          "DTRSM_DATA_CLCT_TM",
+          "RCPTN_SRVR_STRG_TM"
         ],
         "water_level": [
           "water_level",
-          "WL"
+          "WL",
+          "RLTM_RVR_WATL_CNT"
         ],
         "latitude": [
           "latitude",

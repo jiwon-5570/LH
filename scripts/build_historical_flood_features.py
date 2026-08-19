@@ -31,6 +31,12 @@ def main() -> None:
         db.execute(delete(HistoricalFloodFeature))
         for profile in profiles:
             values = analyze_complex(traces, float(profile.longitude), float(profile.latitude))
+            # The operational FloodSpatialFeature table owns radius counts.
+            # Keep this legacy evidence table limited to its declared columns.
+            values = {
+                key: value for key, value in values.items()
+                if key in HistoricalFloodFeature.__table__.columns
+            }
             db.add(HistoricalFloodFeature(
                 historical_flood_feature_id=uuid.uuid4().hex,
                 complex_id=profile.complex_id,

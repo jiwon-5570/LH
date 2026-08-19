@@ -21,47 +21,48 @@ st.set_page_config(page_title="LH-PREDICT RESILIENCE — SEOUL", page_icon=":mat
 st.markdown(
     """
 <style>
-:root { --navy:#061a38; --navy2:#0a2d58; --blue:#1768e5; --line:#e4e9f1; --muted:#718096; }
+:root { --navy:#071b38; --navy2:#0a2d58; --blue:#1768e5; --line:#e3e9f2; --muted:#718096; --surface:#ffffff; }
 .stApp { background:#f4f7fb; color:#132238; }
-[data-testid="stHeader"] { background:#061a38; height:0; }
-[data-testid="stMain"] .block-container { padding:.65rem 1.25rem 1rem; max-width:none; }
+[data-testid="stHeader"] { background:var(--navy); height:2.75rem; border-bottom:1px solid rgba(255,255,255,.08); }
+[data-testid="stToolbar"] { color:#eef5ff; }
+[data-testid="stMain"] .block-container { padding:1rem 1.4rem 1.3rem; max-width:1680px; margin:0 auto; }
 [data-testid="stSidebar"] { background:linear-gradient(180deg,#061a38 0%,#082750 100%); border-right:1px solid rgba(255,255,255,.08); }
-[data-testid="stSidebar"] .block-container { padding:1.35rem .85rem; }
+[data-testid="stSidebar"] .block-container { padding:1.2rem .8rem; }
 [data-testid="stSidebar"] * { color:#eef5ff; }
 [data-testid="stSidebar"] [role="radiogroup"] { gap:.28rem; }
-[data-testid="stSidebar"] [role="radiogroup"] label { padding:.58rem .65rem; border-radius:8px; transition:.16s ease; }
+[data-testid="stSidebar"] [role="radiogroup"] label { min-height:2.35rem; padding:.5rem .65rem; border-radius:9px; transition:.16s ease; }
 [data-testid="stSidebar"] [role="radiogroup"] label:hover { background:rgba(255,255,255,.08); }
 [data-testid="stSidebar"] [role="radiogroup"] label:has(input:checked) { background:linear-gradient(90deg,#1768e5,#1d5bd0); box-shadow:0 7px 18px rgba(0,80,210,.28); }
 [data-testid="stSidebar"] hr { border-color:rgba(255,255,255,.12); }
 h1,h2,h3 { color:#132238; letter-spacing:-.025em; }
-.brand-title { color:white;font-size:1.55rem;font-weight:800;letter-spacing:-.02em; }
-.brand-sub { color:#9eb1c9;font-size:.74rem;margin-top:.15rem;margin-bottom:1.6rem; }
-.topbar { background:#061a38; position:fixed; left:0; right:0; top:0; height:74px; z-index:-1; }
-.page-heading { font-size:1.25rem;font-weight:800;margin:0;color:#152238; }
-.page-sub { color:#7a8799;font-size:.78rem;margin-bottom:.35rem; }
-.kpi-card { background:white;border:1px solid var(--line);border-radius:12px;padding:.7rem .9rem;min-height:84px;box-shadow:0 3px 12px rgba(30,55,90,.045);display:flex;gap:.7rem;align-items:center; }
+.brand-title { color:white;font-size:1.45rem;font-weight:800;letter-spacing:-.02em; }
+.brand-sub { color:#9eb1c9;font-size:.7rem;margin-top:.1rem;margin-bottom:1.2rem;letter-spacing:.04em; }
+.page-heading { font-size:1.3rem;font-weight:800;margin:0;color:#152238;line-height:1.3; }
+.page-sub { color:#7a8799;font-size:.78rem;margin:.14rem 0 .45rem; }
+.kpi-card { background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:.72rem .9rem;min-height:82px;box-shadow:0 2px 8px rgba(30,55,90,.035);display:flex;gap:.7rem;align-items:center; }
 .kpi-icon { width:40px;height:40px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:1.15rem;font-weight:800;flex:0 0 auto; }
 .kpi-label { color:#415064;font-size:.82rem;font-weight:650; }
 .kpi-value { color:#101828;font-size:1.42rem;font-weight:800;line-height:1.05;margin-top:.1rem; }
 .kpi-unit { font-size:.8rem;font-weight:600;margin-left:.18rem; }
 .kpi-foot { color:#8793a5;font-size:.65rem;margin-top:.15rem; }
-.panel-title { font-size:.94rem;font-weight:800;color:#1b293d;margin-bottom:.28rem; }
+.panel-title { font-size:.92rem;font-weight:750;color:#1b293d;margin:0 0 .38rem;line-height:1.25; }
 .empty-panel { min-height:210px;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;color:#8793a5; }
 .empty-icon { width:44px;height:44px;border-radius:12px;background:#edf3fc;color:#3977d4;display:flex;align-items:center;justify-content:center;font-size:1.25rem;margin-bottom:.65rem; }
 .feed-item { border:1px solid #e7ebf1;border-radius:10px;padding:.78rem;margin-bottom:.55rem;background:#fff; }
 .feed-type { color:#d83a34;font-size:.75rem;font-weight:750; }
 .feed-name { color:#27364a;font-size:.8rem;font-weight:650;margin-top:.12rem; }
 .feed-meta { color:#8793a5;font-size:.68rem;margin-top:.2rem; }
-[class*="st-key-risk_card_"] button { min-height:57px;text-align:left;justify-content:flex-start;padding:.38rem .72rem;border:1px solid #e7ebf1;background:white;box-shadow:none;font-size:.72rem;line-height:1.08; }
-[class*="st-key-risk_card_"] button:hover { border-color:#7aa9ef;background:#f8fbff;box-shadow:0 6px 16px rgba(23,104,229,.10);transform:translateY(-1px); }
-div[data-testid="stVerticalBlockBorderWrapper"] { background:white;border-color:var(--line);border-radius:14px;box-shadow:0 3px 12px rgba(30,55,90,.04); }
+[class*="st-key-resilience_card_"] button,[class*="st-key-risk_card_"] button { min-height:52px;text-align:left;justify-content:flex-start;padding:.42rem .68rem;border:1px solid #e7ebf1;background:white;box-shadow:none;font-size:.71rem;line-height:1.12;border-radius:9px; }
+[class*="st-key-resilience_card_"] button:hover,[class*="st-key-risk_card_"] button:hover { border-color:#7aa9ef;background:#f8fbff;box-shadow:0 5px 14px rgba(23,104,229,.09);transform:translateY(-1px); }
+div[data-testid="stVerticalBlockBorderWrapper"] { background:var(--surface);border-color:var(--line);border-radius:14px;box-shadow:0 2px 8px rgba(30,55,90,.035); }
+.st-key-dashboard_map div[data-testid="stVerticalBlockBorderWrapper"],.st-key-dashboard_feed div[data-testid="stVerticalBlockBorderWrapper"],.st-key-dashboard_trend div[data-testid="stVerticalBlockBorderWrapper"],.st-key-dashboard_distribution div[data-testid="stVerticalBlockBorderWrapper"],.st-key-dashboard_table div[data-testid="stVerticalBlockBorderWrapper"] { overflow:hidden; }
 div[data-testid="stMetric"] { background:white;border:1px solid var(--line);border-radius:12px;padding:14px; }
 [data-testid="stDataFrame"] { border:1px solid #e7ebf1;border-radius:10px;overflow:hidden; }
-.api-box { margin-top:1.7rem;padding:.85rem;border:1px solid rgba(86,199,113,.28);border-radius:10px;background:rgba(3,20,45,.3); }
+.api-box { margin-top:1rem;padding:.72rem;border:1px solid rgba(86,199,113,.25);border-radius:10px;background:rgba(3,20,45,.28); }
 .api-ok { color:#61d17b;font-weight:750;font-size:.82rem; }
 .api-caption { color:#9eb1c9;font-size:.68rem;margin-top:.28rem; }
 button[kind="primary"] { border-radius:8px; }
-@media (max-width:900px) { [data-testid="stMain"] .block-container { padding:.8rem; } .kpi-card{min-height:94px;} }
+@media (max-width:900px) { [data-testid="stMain"] .block-container { padding:.8rem; } .kpi-card{min-height:88px;} }
 </style>
 """,
     unsafe_allow_html=True,
@@ -113,7 +114,21 @@ if search:
     keyword = search.casefold()
     complexes = [item for item in complexes if keyword in f"{item.get('complex_name','')} {item.get('address','')}".casefold()]
 
-@st.dialog("단지 재난회복력 상세", width="large", icon=":material/fact_check:")
+
+def score_text(value, empty="미분석"):
+    """Format optional scores without crashing a dialog on missing data."""
+    try:
+        return f"{float(value):.1f}점" if value is not None else empty
+    except (TypeError, ValueError):
+        return empty
+
+
+def percent_text(value, empty="미확인"):
+    try:
+        return f"{float(value) * 100:.2f}%" if value is not None else empty
+    except (TypeError, ValueError):
+        return empty
+
 def show_resilience_detail(complex_id: str):
     detail, detail_error = get(f"/api/v1/seoul/complexes/{complex_id}")
     if detail_error or not detail:
@@ -125,13 +140,13 @@ def show_resilience_detail(complex_id: str):
     )
     resilience = assessments.get("resilience") or {}
     confidence = assessments.get("data_confidence") or {}
-    st.subheader(detail["complex_name"])
-    st.caption(f"{detail['address']} · {detail.get('validation_status')} · 기준시각 {resilience.get('assessed_at', '미분석')}")
+    st.subheader(detail.get("complex_name", complex_id))
+    st.caption(f"{detail.get('address', '주소 미확인')} · {detail.get('validation_status')} · 기준시각 {resilience.get('assessed_at', '미분석')}")
     cols = st.columns(4)
-    cols[0].metric("회복력", "데이터 부족" if resilience.get("score") is None else f"{resilience['score']:.1f}점")
-    cols[1].metric("기후 취약성", "미분석" if not assessments.get("climate_vulnerability") else f"{assessments['climate_vulnerability']['score']:.1f}점")
-    cols[2].metric("시설 취약성", "미분석" if not assessments.get("facility_vulnerability") or assessments['facility_vulnerability'].get('score') is None else f"{assessments['facility_vulnerability']['score']:.1f}점")
-    cols[3].metric("데이터 신뢰도", "미분석" if confidence.get("score") is None else f"{confidence['score']:.1f}점")
+    cols[0].metric("회복력", score_text(resilience.get("score"), "데이터 부족"))
+    cols[1].metric("기후 취약성", score_text((assessments.get("climate_vulnerability") or {}).get("score")))
+    cols[2].metric("시설 취약성", score_text((assessments.get("facility_vulnerability") or {}).get("score")))
+    cols[3].metric("데이터 신뢰도", score_text(confidence.get("score")))
     st.warning("회복력은 운영 의사결정 지원용 복합지수이며 실제 재난 발생확률이 아닙니다.")
     st.markdown("#### 왜 취약한가? — 근거 TOP 5")
     factors = (resilience.get("explanation") or {}).get("top_factors", [])
@@ -159,7 +174,7 @@ def show_resilience_detail(complex_id: str):
             cols[0].metric("이력 근접지수", f"{history['score']:.1f}점", border=True)
             distance = features.get("nearest_trace_distance_m")
             cols[1].metric("최근접 흔적", "500m 초과" if distance is None else f"{distance:,.1f}m", border=True)
-            cols[2].metric("100m 겹침", f"{features.get('overlap_ratio_100m', 0) * 100:.2f}%", border=True)
+            cols[2].metric("100m 겹침", percent_text(features.get("overlap_ratio_100m")), border=True)
             cols[3].metric("점 위치 겹침", "있음" if features.get("intersects_trace") else "없음", border=True)
             st.json({
                 "단지점 겹침 연도":features.get("hit_years_point", []),
@@ -209,6 +224,9 @@ def show_resilience_detail(complex_id: str):
             st.info("통합 수문 Feature가 아직 생성되지 않았습니다. build_seoul_hydrology.py를 실행하세요.")
         else:
             statuses = flood_features.get("dataset_statuses", {})
+            historical_evidence = (
+                flood_features.get("source_metadata", {}).get("historical_flood_evidence", {})
+            )
             st.caption("실제 적재 데이터만 표시합니다. 미확보 데이터는 BLOCKED_BY_DATA로 유지됩니다.")
             st.dataframe(
                 pd.DataFrame(
@@ -223,6 +241,13 @@ def show_resilience_detail(complex_id: str):
                     "300m 건수": flood_features.get("historical_flood_count_300m"),
                     "500m 건수": flood_features.get("historical_flood_count_500m"),
                     "최근 연도": flood_features.get("last_flood_year"),
+                    "최근접 침수흔적 거리(m)": historical_evidence.get("nearest_trace_distance_m"),
+                    "100m 침수 연도": historical_evidence.get("hit_years_100m", []),
+                    "300m 침수 연도": historical_evidence.get("hit_years_300m", []),
+                    "500m 침수 연도": historical_evidence.get("hit_years_500m", []),
+                    "100m 침수심 근거(m)": historical_evidence.get("depth_100m"),
+                    "300m 침수심 근거(m)": historical_evidence.get("depth_300m"),
+                    "500m 침수심 근거(m)": historical_evidence.get("depth_500m"),
                 },
                 "배수 시설": {
                     "최근접 거리(m)": flood_features.get("distance_to_nearest_pump_station_m"),
@@ -250,7 +275,6 @@ def empty_state(icon, title, caption, min_height=210):
         f'<b>{title}</b><div style="font-size:.75rem;margin-top:.25rem">{caption}</div></div>', unsafe_allow_html=True,
     )
 
-@st.dialog("위험 선별 상세 근거", width="large", icon=":material/fact_check:")
 def show_risk_detail(prediction_id: str):
     detail, detail_error = get(f"/api/v1/predictions/{prediction_id}/detail")
     if detail_error or not detail:
@@ -294,11 +318,23 @@ def show_risk_detail(prediction_id: str):
 
     st.markdown("#### AI 근거 설명")
     cache = st.session_state.setdefault("risk_ai_explanations", {})
-    if prediction_id not in cache:
+    if prediction_id in cache:
+        st.info(cache[prediction_id], icon=":material/psychology:")
+    elif st.button(
+        "AI 근거 설명 생성",
+        key=f"risk_ai_explanation_{prediction_id}",
+        icon=":material/psychology:",
+    ):
         with st.spinner("Claude가 위 근거 데이터만 사용해 설명을 작성하고 있습니다..."):
             ai_result, ai_error = post(f"/api/v1/predictions/{prediction_id}/ai-explanation", {})
-        cache[prediction_id] = ai_result.get("answer") if ai_result else f"AI 설명을 생성하지 못했습니다: {ai_error}"
-    st.info(cache[prediction_id], icon=":material/psychology:")
+        cache[prediction_id] = (
+            ai_result.get("answer")
+            if ai_result
+            else f"AI 설명을 생성하지 못했습니다: {ai_error}"
+        )
+        st.info(cache[prediction_id], icon=":material/psychology:")
+    else:
+        st.caption("상세 근거는 즉시 표시됩니다. AI 설명은 필요할 때만 생성하십시오.")
     with st.expander("해석 시 주의사항"):
         st.write(detail.get("limitation", "현장 확인과 담당자의 최종 판단이 필요합니다."))
 
@@ -317,10 +353,10 @@ if page == "대시보드":
 
     st.space(8)
     map_col, feed_col = st.columns([2.15, 1], gap="medium")
-    with map_col, st.container(border=True, height=370):
+    with map_col, st.container(border=True, height=370, key="dashboard_map"):
         st.markdown('<div class="panel-title">서울 LH 재난회복력 지도</div>', unsafe_allow_html=True)
         render_naver_map(complexes, height=310)
-    with feed_col, st.container(border=True, height=370):
+    with feed_col, st.container(border=True, height=370, key="dashboard_feed"):
         st.markdown('<div class="panel-title">점검 우선 단지</div>', unsafe_allow_html=True)
         if seoul_high_risk:
             for item in seoul_high_risk[:5]:
@@ -329,17 +365,29 @@ if page == "대시보드":
                          f"**{item.get('complex_name', item.get('complex_id'))}**  \n"
                          f"{('데이터 부족' if score is None else f'{score:.1f}점')} · 상세 근거 보기")
                 if st.button(label, key=f"resilience_card_{item['complex_id']}", width="stretch"):
-                    show_resilience_detail(item["complex_id"])
+                    st.session_state.selected_resilience_detail = item["complex_id"]
         else:
             empty_state("◎", "취약 단지가 없습니다", "분석 결과 또는 데이터 상태를 확인하세요.", 285)
 
+    selected_resilience_detail = st.session_state.get("selected_resilience_detail")
+    if selected_resilience_detail:
+        with st.container(border=True, key="resilience_detail_panel"):
+            header_col, close_col = st.columns([12, 1])
+            header_col.markdown("### :material/fact_check: 단지 재난회복력 상세")
+            if close_col.button(
+                "닫기", key="close_resilience_detail", icon=":material/close:"
+            ):
+                del st.session_state.selected_resilience_detail
+                st.rerun()
+            show_resilience_detail(selected_resilience_detail)
+
     st.space(8)
     trend_col, dist_col, table_col = st.columns([1.05, .9, 1.15], gap="medium")
-    with trend_col, st.container(border=True, height=235):
+    with trend_col, st.container(border=True, height=235, key="dashboard_trend"):
         st.markdown('<div class="panel-title">분석 상태</div>', unsafe_allow_html=True)
         status_counts = pd.Series([item.get("validation_status", "UNKNOWN") for item in complexes]).value_counts()
         st.bar_chart(status_counts, horizontal=True, height=165)
-    with dist_col, st.container(border=True, height=235):
+    with dist_col, st.container(border=True, height=235, key="dashboard_distribution"):
             st.markdown('<div class="panel-title">회복력 분포</div>', unsafe_allow_html=True)
             if complexes:
                 order = ["취약", "주의", "보통", "양호", "데이터 부족"]
@@ -364,7 +412,7 @@ if page == "대시보드":
                 st.plotly_chart(figure, width="stretch", config={"displayModeBar":False, "responsive":True})
             else:
                 empty_state("◔", "분포 데이터 없음", "현재 유효한 예측 결과가 없습니다.", 155)
-    with table_col, st.container(border=True, height=235):
+    with table_col, st.container(border=True, height=235, key="dashboard_table"):
             st.markdown('<div class="panel-title">회복력 취약 단지</div>', unsafe_allow_html=True)
             if seoul_high_risk:
                 table = pd.DataFrame(seoul_high_risk[:8])[["complex_name", "district", "resilience_score", "data_confidence"]]
@@ -385,6 +433,34 @@ elif page == "AI 위험 감지 피드":
         frame["단지명"] = frame["complex_id"].map(names).fillna(frame["complex_id"])
         frame["선별지수"] = (frame["risk_probability"] * 100).round(1)
         st.dataframe(frame[["단지명", "risk_type", "risk_level", "선별지수", "prediction_time", "model_version"]], hide_index=True, width="stretch", height=430)
+        selected_prediction = st.selectbox(
+            "상세 확인 대상",
+            predictions,
+            key="risk_feed_detail_target",
+            format_func=lambda item: (
+                f"{names.get(item.get('complex_id'), item.get('complex_id'))} · "
+                f"{'침수' if item.get('risk_type') == 'flood' else '설비'} · "
+                f"{float(item.get('risk_probability') or 0) * 100:.1f}점"
+            ),
+        )
+        if st.button(
+            "취약도 확인",
+            key="risk_feed_detail_button",
+            type="primary",
+            icon=":material/fact_check:",
+        ):
+            st.session_state.selected_risk_detail = selected_prediction["prediction_id"]
+        selected_risk_detail = st.session_state.get("selected_risk_detail")
+        if selected_risk_detail:
+            with st.container(border=True, key="risk_feed_detail_panel"):
+                header_col, close_col = st.columns([12, 1])
+                header_col.markdown("### :material/fact_check: 위험 선별 상세 근거")
+                if close_col.button(
+                    "닫기", key="close_risk_feed_detail", icon=":material/close:"
+                ):
+                    del st.session_state.selected_risk_detail
+                    st.rerun()
+                show_risk_detail(selected_risk_detail)
         unacked = [a for a in alerts if not a.get("acknowledged")]
         st.subheader("미확인 경보")
         if unacked:
@@ -418,6 +494,34 @@ elif page == "예측 분석":
         left, right = st.columns(2)
         with left: st.bar_chart(frame.groupby("risk_type")["선별지수"].mean(), height=300)
         with right: st.bar_chart(frame.groupby("risk_level").size().rename("건수"), height=300)
+        selected_prediction = st.selectbox(
+            "취약도 상세 대상",
+            predictions,
+            key="analysis_detail_target",
+            format_func=lambda item: (
+                f"{item.get('complex_id')} · "
+                f"{'침수' if item.get('risk_type') == 'flood' else '설비'} · "
+                f"{float(item.get('risk_probability') or 0) * 100:.1f}점"
+            ),
+        )
+        if st.button(
+            "취약도 확인",
+            key="analysis_detail_button",
+            type="primary",
+            icon=":material/fact_check:",
+        ):
+            st.session_state.selected_analysis_risk_detail = selected_prediction["prediction_id"]
+        selected_analysis_detail = st.session_state.get("selected_analysis_risk_detail")
+        if selected_analysis_detail:
+            with st.container(border=True, key="analysis_risk_detail_panel"):
+                header_col, close_col = st.columns([12, 1])
+                header_col.markdown("### :material/fact_check: 취약도 상세 근거")
+                if close_col.button(
+                    "닫기", key="close_analysis_risk_detail", icon=":material/close:"
+                ):
+                    del st.session_state.selected_analysis_risk_detail
+                    st.rerun()
+                show_risk_detail(selected_analysis_detail)
         st.dataframe(frame, hide_index=True, width="stretch", height=340)
     else: empty_state("↗", "분석 결과 없음", "운영 선별 배치 실행 상태를 확인하세요.", 380)
 elif page == "설비 관리":

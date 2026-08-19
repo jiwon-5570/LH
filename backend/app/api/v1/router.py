@@ -1,4 +1,5 @@
 import json
+import os
 import uuid
 from datetime import UTC, datetime
 from html import escape
@@ -32,6 +33,19 @@ from backend.app.services.seoul_resilience_service import latest_assessments, pr
 
 router = APIRouter(prefix="/api/v1")
 router.include_router(seoul_router)
+
+
+@router.get("/frontend-config")
+def frontend_config():
+    """Expose browser-safe public configuration; never return server secrets."""
+    auth_param = os.getenv("NAVER_MAP_AUTH_PARAM", "ncpKeyId").strip()
+    if auth_param not in {"ncpKeyId", "ncpClientId"}:
+        auth_param = "ncpKeyId"
+    return {
+        "naver_map_client_id": os.getenv("NAVER_MAP_CLIENT_ID", "").strip(),
+        "naver_map_auth_param": auth_param,
+        "environment": os.getenv("APP_ENV", "development"),
+    }
 
 @router.get("/complexes", response_model=list[ComplexOut])
 def complexes(limit: int = Query(100, ge=1, le=1000), db: Session = Depends(get_db)):
@@ -162,7 +176,15 @@ def acknowledge(alert_id: str, db: Session = Depends(get_db)):
 def data_quality(db: Session = Depends(get_db)):
     total = db.scalar(select(func.count()).select_from(Complex)) or 0
     latest = db.scalars(select(DataCollectionRun).order_by(DataCollectionRun.started_at.desc()).limit(50)).all()
-    return {"status": "ok" if total else "unavailable", "complex_count": total, "message": "정상" if total else "데이터 미수집", "collection_runs": [{"collection_run_id":x.collection_run_id,"dataset_id":x.dataset_id,"status":x.status,"started_at":x.started_at,"record_count":x.record_count,"valid_count":x.valid_count,"quarantined_count":x.quarantined_count,"failure_reason":x.failure_reason} for x in latest]}
+    return {"status": "ok" if total else "unavailable", "complex_count": total, "message": "정상" if total else "데이터 미수집", "collection_runs": [{"collection_run_id":x.collection_run_id,"dataset_id":x.dataset_id,"status":x.status,"started_at":x.started_at,"record_count":x.record_count,"valid_count":x.valid_count,"quarantined_count":x.quarantined_count,"failure_reason":_safe_failure_reason(x.failure_reason)} for x in latest]}
+
+
+def _safe_failure_reason(reason: str | None, limit: int = 500) -> str | None:
+    """Keep diagnostics useful without returning SQL parameter dumps or huge payloads."""
+    if not reason:
+        return None
+    first_line = reason.splitlines()[0].strip()
+    return first_line if len(first_line) <= limit else f"{first_line[:limit - 1]}…"
 
 @router.get("/data-sources")
 def data_sources():
@@ -173,7 +195,7 @@ def collection_quality(collection_run_id: str, db: Session = Depends(get_db)):
     run = db.get(DataCollectionRun, collection_run_id)
     if not run: raise HTTPException(404, "수집 실행 이력 없음")
     checks = db.scalars(select(DataQualityResult).where(DataQualityResult.collection_run_id == collection_run_id)).all()
-    return {"run":{"collection_run_id":run.collection_run_id,"dataset_id":run.dataset_id,"status":run.status,"record_count":run.record_count,"valid_count":run.valid_count,"quarantined_count":run.quarantined_count,"failure_reason":run.failure_reason},"checks":[{"check_name":x.check_name,"status":x.status,"failed_count":x.failed_count,"details":x.details} for x in checks]}
+    return {"run":{"collection_run_id":run.collection_run_id,"dataset_id":run.dataset_id,"status":run.status,"record_count":run.record_count,"valid_count":run.valid_count,"quarantined_count":run.quarantined_count,"failure_reason":_safe_failure_reason(run.failure_reason)},"checks":[{"check_name":x.check_name,"status":x.status,"failed_count":x.failed_count,"details":x.details} for x in checks]}
 
 @router.get("/data-sources/{dataset_id}/records")
 def source_records(dataset_id: str, limit: int = Query(100, ge=1, le=1000), db: Session = Depends(get_db)):

@@ -1,0 +1,44 @@
+/* NAVER Maps creates high z-index controls. Keep the map in its own stacking
+   context and give it only the space remaining below the panel header. */
+.sidebar {
+  z-index: 1100;
+}
+
+.topbar {
+  z-index: 1000;
+}
+
+.map-panel,
+.panel.tall {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.map-panel > .panel-head,
+.panel.tall > .panel-head {
+  flex: 0 0 auto;
+}
+
+.map-panel > .map-wrap,
+.panel.tall > .map-wrap {
+  flex: 1 1 auto;
+  height: auto;
+  min-height: 0;
+}
+
+.map-wrap {
+  isolation: isolate;
+  z-index: 0;
+}
+
+.map-wrap,
+.map {
+  min-height: 0;
+}
+
+/* Both columns in the dashboard row must stay inside the same row height. */
+.dashboard-grid > .panel {
+  min-width: 0;
+  overflow: hidden;
+}

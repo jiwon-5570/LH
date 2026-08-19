@@ -14,7 +14,10 @@ if str(ROOT) not in sys.path:
 from backend.app.db.base import Base, DataCollectionRun
 from backend.app.db.session import SessionLocal, engine
 from backend.app.services.flood_spatial_feature_service import build_flood_spatial_features
-from backend.app.services.flood_trace_service import consolidate_flood_traces
+from backend.app.services.flood_trace_service import (
+    consolidate_flood_traces,
+    consolidate_mois_api_flood_traces,
+)
 
 
 def main() -> None:
@@ -23,6 +26,15 @@ def main() -> None:
     canonical = consolidate_flood_traces(
         flood_paths, ROOT / "data/processed/seoul_flood_trace"
     ) if flood_paths else {"status": "BLOCKED_BY_DATA", "output_features": 0}
+    api_paths = sorted(
+        (ROOT / "data/processed/mois_flood_trace_api").glob("*.parquet"),
+        key=lambda path: path.stat().st_mtime,
+    )
+    if api_paths:
+        canonical_path = ROOT / "data/processed/seoul_flood_trace/seoul_flood_trace.parquet"
+        canonical["mois_api_integration"] = consolidate_mois_api_flood_traces(
+            api_paths[-1], canonical_path if canonical_path.exists() else None, canonical_path.parent
+        )
     now = datetime.now(UTC)
     with SessionLocal() as db:
         feature_summary = build_flood_spatial_features(db, ROOT)

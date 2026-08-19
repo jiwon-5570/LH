@@ -1,9 +1,13 @@
 import json
+from datetime import UTC, datetime
 
 import pandas as pd
+from sqlalchemy import create_engine
+from sqlalchemy.orm import Session
 
-from backend.app.collectors.pipeline import _raise_gateway_error, validate
+from backend.app.collectors.pipeline import _persist_valid_records, _raise_gateway_error, validate
 from backend.app.collectors.registry import get_dataset
+from backend.app.db.base import Base, DataCollectionRun, SourceRecord
 
 
 def test_lh_korean_columns_are_normalized():
@@ -47,3 +51,41 @@ def test_rain_gauge_coordinates_become_verified_geometry():
     assert valid.crs.to_epsg() == 4326
     assert valid.geometry.iloc[0].x == 126.98
     assert valid.geometry.iloc[0].y == 37.55
+
+
+def test_rain_gauge_history_keeps_latest_station_location():
+    frame = pd.DataFrame([
+        {"지점":"400", "지점명":"강남", "시작일":"2020-01-01", "종료일":"2023-01-01", "위도":"37.50", "경도":"127.04"},
+        {"지점":"400", "지점명":"강남", "시작일":"2023-01-01", "종료일":None, "위도":"37.51", "경도":"127.08"},
+    ])
+    valid, quarantine, checks = validate(frame, get_dataset("seoul_rain_gauge_locations"))
+    assert quarantine.empty
+    assert len(valid) == 1
+    assert valid.iloc[0]["latitude"] == 37.51
+    assert all(check["status"] == "pass" for check in checks)
+
+
+def test_source_record_preview_is_idempotent(monkeypatch):
+    engine = create_engine("sqlite:///:memory:")
+    Base.metadata.create_all(engine)
+    spec = get_dataset("seoul_flood_forecast_geometry")
+    frame = pd.DataFrame([{"space_id": "A", "flood_stage": 2}])
+    collected_at = datetime.now(UTC)
+    monkeypatch.setenv("SOURCE_RECORD_SAMPLE_LIMIT", "100")
+
+    with Session(engine) as db:
+        for run_id in ("run-1", "run-2"):
+            db.add(DataCollectionRun(
+                collection_run_id=run_id,
+                dataset_id=spec.id,
+                source_name=spec.name,
+                started_at=collected_at,
+                status="running",
+            ))
+            db.flush()
+            _persist_valid_records(db, frame, spec, run_id, "same-version", collected_at)
+            db.commit()
+
+        records = db.query(SourceRecord).all()
+        assert len(records) == 1
+        assert records[0].collection_run_id == "run-2"
