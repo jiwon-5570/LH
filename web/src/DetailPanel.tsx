@@ -14,11 +14,13 @@ export function DetailPanel({ complex, onClose }: { complex: Complex; onClose: (
   const [error, setError] = useState("");
 
   useEffect(() => {
+    const scenarioId=sessionStorage.getItem("active_scenario_id");
+    const cascadeUrl=scenarioId?`/api/v1/seoul/stress-tests/${encodeURIComponent(`${scenarioId}:${complex.complex_id}`)}/cascade`:`/api/v1/seoul/complexes/${complex.complex_id}/cascade`;
     setError(""); setDetail(null); setFlood(null); setCascade(null); setAiText(""); setAiState("loading"); setTab(0);
     Promise.all([
       api<Detail>(`/api/v1/seoul/complexes/${complex.complex_id}`),
       api<any>(`/api/v1/seoul/complexes/${complex.complex_id}/flood-features`),
-      api<any>(`/api/v1/seoul/complexes/${complex.complex_id}/cascade`)
+      api<any>(cascadeUrl).catch(()=>api<any>(`/api/v1/seoul/complexes/${complex.complex_id}/cascade`))
     ]).then(([d, f, c]) => {
       setDetail(d); setFlood(f); setCascade(c);
       const verifiedNarrative = buildVerifiedNarrative(d, f);
@@ -77,6 +79,7 @@ function CascadeView({value}:{value:any}) {
   return <div className="cascade-view">
     <div className="cascade-summary"><div><small>운영용 연쇄영향 단계</small><strong>Level {value.cascade_level}</strong><span>{value.cascade_label}</span></div><div><small>활성 경로</small><strong>{value.active_path_count}개</strong></div><div><small>데이터 신뢰도</small><strong>{value.data_confidence}</strong></div></div>
     <p className="cascade-notice">실제 재난 발생확률이나 공식 재난등급이 아닌, 확보된 데이터 간 조건관계에 따른 운영 영향경로입니다.</p>
+    {value.comparison&&<div className="cascade-comparison"><div><small>현재</small><b>Level {value.comparison.base_cascade_level}</b></div><i>→</i><div><small>사용자 시나리오</small><b>Level {value.comparison.scenario_cascade_level}</b></div><p>새 Node: {value.comparison.newly_activated_nodes?.join(", ")||"없음"}<br/>새 경로: {value.comparison.newly_activated_paths?.join(", ")||"없음"}</p></div>}
     {(value.paths||[]).length>0?<div className="cascade-paths">{value.paths.map((path:any)=><div className="cascade-path" key={path.path_name}><b>{path.path_name}</b><div>{path.nodes.map((id:string,i:number)=><span key={id}>{i>0&&<i>↓</i>}<em>{(value.nodes||[]).find((x:any)=>x.node_id===id)?.label||id}</em></span>)}</div></div>)}</div>:<MissingReason text="현재 근거에서 끝까지 활성화된 연쇄경로가 없습니다."/>}
     <div className="cascade-nodes">{visible.map((node:any)=><details key={node.node_id} className={`cascade-node ${node.status.toLowerCase()}`}><summary><b>{node.label}</b><span>{node.status}</span></summary><h4>왜 이 상태인가요?</h4>{node.evidence?.length?<ul>{node.evidence.map((e:any,i:number)=><li key={i}>{e.dataset} · {e.feature}: <b>{String(e.value)}{e.unit?` ${e.unit}`:""}</b></li>)}</ul>:<p>활성화를 뒷받침하는 직접 근거가 없습니다.</p>}{node.missing_evidence?.length>0&&<p className="cascade-missing">부족한 근거: {node.missing_evidence.join(", ")}</p>}</details>)}</div>
     {value.priorities?.length>0&&<div className="cascade-priority"><b>운영 점검 우선순위</b><ol>{value.priorities.map((x:string)=><li key={x}>{x}</li>)}</ol><small>공식 안전점검 지침을 대체하지 않습니다.</small></div>}
