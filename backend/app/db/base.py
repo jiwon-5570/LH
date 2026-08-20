@@ -170,6 +170,35 @@ class StressTestRun(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
 
 
+class CascadeAnalysisRun(Base):
+    __tablename__ = "cascade_analysis_runs"
+    run_id: Mapped[str] = mapped_column(String(100), primary_key=True)
+    complex_id: Mapped[str] = mapped_column(ForeignKey("complexes.complex_id"), index=True)
+    analysis_mode: Mapped[str] = mapped_column(String(20), index=True)
+    scenario_run_id: Mapped[str | None] = mapped_column(String(100), nullable=True, index=True)
+    cascade_level: Mapped[int] = mapped_column(Integer)
+    active_path_count: Mapped[int] = mapped_column(Integer)
+    data_confidence: Mapped[str] = mapped_column(String(20))
+    method_type: Mapped[str] = mapped_column(String(40), default="evidence_graph")
+    method_version: Mapped[str] = mapped_column(String(40), default="cascade-v1")
+    input_snapshot: Mapped[dict] = mapped_column(JSON, default=dict)
+    result_snapshot: Mapped[dict] = mapped_column(JSON, default=dict)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+
+
+class CascadePath(Base):
+    __tablename__ = "cascade_paths"
+    path_id: Mapped[str] = mapped_column(String(120), primary_key=True)
+    run_id: Mapped[str] = mapped_column(ForeignKey("cascade_analysis_runs.run_id"), index=True)
+    path_name: Mapped[str] = mapped_column(String(200))
+    nodes: Mapped[list] = mapped_column(JSON, default=list)
+    status: Mapped[str] = mapped_column(String(30))
+    severity: Mapped[str] = mapped_column(String(20))
+    evidence: Mapped[list] = mapped_column(JSON, default=list)
+    missing_evidence: Mapped[list] = mapped_column(JSON, default=list)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+
+
 class ModelVersion(Base):
     __tablename__ = "model_versions"
     model_id: Mapped[str] = mapped_column(String(100), primary_key=True)

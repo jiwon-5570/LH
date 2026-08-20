@@ -15,5 +15,12 @@
     "noUnusedLocals": false,
     "noUnusedParameters": false
   },
-  "include": ["src"]
+  "files": [
+    "src/vite-env.d.ts",
+    "src/main.tsx",
+    "src/App.tsx",
+    "src/api.ts",
+    "src/NaverMap.tsx",
+    "src/DetailPanel.tsx"
+  ]
 }

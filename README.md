@@ -494,3 +494,15 @@ Content-Type: application/json
 
 {"rain_change_pct":50,"sewer_change_pct":20,"river_change_pct":10,"apply_to_all_complexes":true}
 ```
+# Cascading Risk Engine v1
+
+LH-PREDICT의 Cascading Risk는 실제 재난 발생확률이 아니라 현재 확보된 공공데이터 간 조건관계를 이용한 **증거 기반 운영 영향경로 분석**이다. 강우, 하수·하천 수위, DEM 저지대, 공식 침수흔적, 침수예상도, 배수펌프장 접근성, 승강기 연계정보와 기존 검증 평가 스냅샷만 사용한다.
+
+- 지원 환경 Node: `HEAVY_RAIN`, `SEWER_STRESS`, `RIVER_STRESS`, `LOWLAND_EXPOSURE`, `HISTORICAL_FLOOD_EXPOSURE`, `EXPECTED_FLOOD_EXPOSURE`, `DRAINAGE_LIMITATION`
+- 복합·영향 Node: `COMPOUND_HYDROLOGIC_STRESS`, `FLOOD_EXPOSURE`, `ELEVATOR_SERVICE_IMPACT`, `UNDERGROUND_EQUIPMENT_REVIEW`, `ACCESS_FUNCTION_REVIEW`, `FUNCTIONAL_DISRUPTION`, `RESILIENCE_DEGRADATION`
+- 단계: Level 0(미탐지)부터 Level 5(복수 기능영향 및 회복력 저하 점검 경로)까지이며 UI에서는 `운영용 연쇄영향 단계`로만 표시한다.
+- Evidence: 활성 Node마다 데이터셋, Feature명, 실제 값과 부족한 근거를 함께 반환한다.
+- 시나리오: `StressTestRun`의 기존값과 사용자 수정값을 각각 재평가하며 미래 예측으로 표현하지 않는다.
+- 한계: 전기실·기계실·발전기실 등 내부설비 위치가 없으므로 고장·누전·정전·승강기 정지를 생성하지 않는다. 위치·방수상태 확인이 필요한 경우 `REVIEW_REQUIRED`, 기준정보가 없으면 `INSUFFICIENT`로 표시한다.
+
+API는 `GET /api/v1/seoul/complexes/{complex_id}/cascade`, 재분석은 `POST .../cascade/analyze`, 시나리오 비교는 `GET /api/v1/seoul/stress-tests/{run_id}/cascade`를 사용한다. Re:Safe Score와 Cascade Level은 검증 전까지 별도 지표로 유지한다.

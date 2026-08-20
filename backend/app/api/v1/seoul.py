@@ -19,6 +19,11 @@ from backend.app.schemas.seoul import (
     StressTestOut,
     StressTestRequest,
 )
+from backend.app.services.cascading_risk_service import (
+    analyze_all_complexes,
+    analyze_realtime_cascade,
+    analyze_scenario_cascade,
+)
 from backend.app.services.flood_spatial_feature_service import (
     api_configuration_status,
     dataset_availability,
@@ -125,6 +130,35 @@ def river(complex_id: str, db: Db):
 @router.get("/complexes/{complex_id}/flood-features")
 def flood_features(complex_id: str, db: Db):
     return _flood_feature(complex_id, None, db)
+
+
+@router.get("/complexes/{complex_id}/cascade")
+def cascade(complex_id: str, db: Db):
+    try:
+        return analyze_realtime_cascade(db, complex_id, persist=False)
+    except LookupError as exc:
+        raise HTTPException(404, str(exc)) from exc
+
+
+@router.post("/complexes/{complex_id}/cascade/analyze")
+def analyze_cascade(complex_id: str, db: Db):
+    try:
+        return analyze_realtime_cascade(db, complex_id, persist=True)
+    except LookupError as exc:
+        raise HTTPException(404, str(exc)) from exc
+
+
+@router.get("/stress-tests/{stress_run_id}/cascade")
+def scenario_cascade(stress_run_id: str, db: Db):
+    try:
+        return analyze_scenario_cascade(db, stress_run_id, persist=False)
+    except LookupError as exc:
+        raise HTTPException(404, str(exc)) from exc
+
+
+@router.post("/cascade/analyze-all")
+def cascade_all(db: Db):
+    return analyze_all_complexes(db)
 
 
 @router.get("/hydrology-sources")

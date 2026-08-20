@@ -63,3 +63,13 @@ Day 1 구조·정직성 게이트, Day 2 DB/API, Day 3~6 실제 수집·매칭, 
 - [x] 실시간 평가와 분리된 `stress_test_runs` 영속화
 - [x] 시나리오 KPI, NAVER 지도 점수, 영향 TOP 5 연결
 - [ ] 검증 Flood ML 확보 후 scenario inference로 승격
+# Cascading Risk Engine v1
+
+- [x] 기존 DB/processed Feature 가용성 감사
+- [x] 결정론적 Evidence Graph와 데이터 부족 상태 구현
+- [x] 실시간·StressTestRun 시나리오 분석 API 구현
+- [x] 분석 실행·경로 DB 저장 구현
+- [x] React 단지 상세 `연쇄영향` 탭 구현
+- [x] Claude 입력에 계산 완료된 Cascade 구조만 포함
+- [x] 부정 테스트: 전기·승강기 고장 Node 생성 금지
+- [ ] 내부설비 위치 데이터 확보 후 세부 기능영향 검증(현재 범위 밖)

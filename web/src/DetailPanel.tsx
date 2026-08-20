@@ -2,27 +2,37 @@ import { useEffect, useMemo, useState } from "react";
 import { api, fmt, type Complex, type Detail } from "./api";
 import { X, ShieldCheck, CloudRain, Building2, Database, BrainCircuit, AlertTriangle } from "lucide-react";
 
-const tabs = ["종합 근거", "공식 침수이력", "배수 인프라", "시설", "데이터 품질", "통합 수문 Feature"];
+const tabs = ["종합 근거", "공식 침수이력", "배수 인프라", "연쇄영향", "시설", "데이터 품질", "통합 수문 Feature"];
 
 export function DetailPanel({ complex, onClose }: { complex: Complex; onClose: () => void }) {
   const [detail, setDetail] = useState<Detail | null>(null);
   const [flood, setFlood] = useState<any>(null);
+  const [cascade, setCascade] = useState<any>(null);
   const [aiText, setAiText] = useState("");
   const [aiState, setAiState] = useState<"loading" | "claude" | "fallback">("loading");
   const [tab, setTab] = useState(0);
   const [error, setError] = useState("");
 
   useEffect(() => {
-    setError(""); setDetail(null); setFlood(null); setAiText(""); setAiState("loading"); setTab(0);
+    setError(""); setDetail(null); setFlood(null); setCascade(null); setAiText(""); setAiState("loading"); setTab(0);
     Promise.all([
       api<Detail>(`/api/v1/seoul/complexes/${complex.complex_id}`),
-      api<any>(`/api/v1/seoul/complexes/${complex.complex_id}/flood-features`)
-    ]).then(([d, f]) => {
-      setDetail(d); setFlood(f);
+      api<any>(`/api/v1/seoul/complexes/${complex.complex_id}/flood-features`),
+      api<any>(`/api/v1/seoul/complexes/${complex.complex_id}/cascade`)
+    ]).then(([d, f, c]) => {
+      setDetail(d); setFlood(f); setCascade(c);
+      const verifiedNarrative = buildVerifiedNarrative(d, f);
+      setAiText(verifiedNarrative);
+      setAiState("fallback");
       const prompt = "이 단지의 취약요인을 확보된 DB 근거만 사용해 4~6문장으로 설명해 주세요. 점수가 실제 재난 확률이 아님을 밝히고, 자료가 부족한 항목은 부족하다고 명시하며, 우선 점검 조치 2가지를 포함하세요.";
       api<any>("/api/v1/ai/chat", { method: "POST", body: JSON.stringify({ question: prompt, complex_id: complex.complex_id }) })
-        .then(result => { setAiText(result.answer); setAiState("claude"); })
-        .catch(() => { setAiText(buildVerifiedNarrative(d, f)); setAiState("fallback"); });
+        .then(result => {
+          const answer = typeof result?.answer === "string" ? result.answer.trim() : "";
+          if (!isCompleteNarrative(answer, result?.stop_reason)) return;
+          setAiText(`${verifiedNarrative}\n\nAI 보충 해설: ${answer}`);
+          setAiState("claude");
+        })
+        .catch(() => { /* 검증 규칙 기반 설명을 유지합니다. */ });
     }).catch(e => setError(e.message));
   }, [complex.complex_id]);
 
@@ -52,31 +62,85 @@ export function DetailPanel({ complex, onClose }: { complex: Complex; onClose: (
         {tab === 0 && <EvidenceList value={evidence} />}
         {tab === 1 && <ReadableEvidence value={assessments.historical_exposure} missing="단지 좌표 또는 공식 침수 중첩 분석 결과가 아직 없습니다." />}
         {tab === 2 && <ReadableEvidence value={assessments.drainage_infrastructure_context} missing="단지 좌표가 없어 주변 배수펌프장과 거리·용량을 계산할 수 없습니다." />}
-        {tab === 3 && <ReadableEvidence value={facility} missing="이 단지와 연결된 승강기 검사·시정권고 근거가 충분하지 않습니다." />}
-        {tab === 4 && <ReadableEvidence value={confidence} missing="데이터 품질 평가 결과가 아직 생성되지 않았습니다." />}
-        {tab === 5 && <ReadableEvidence value={flood} missing="통합 수문 Feature가 아직 생성되지 않았습니다." />}
+        {tab === 3 && <CascadeView value={cascade}/>}
+        {tab === 4 && <ReadableEvidence value={facility} missing="이 단지와 연결된 승강기 검사·시정권고 근거가 충분하지 않습니다." />}
+        {tab === 5 && <ReadableEvidence value={confidence} missing="데이터 품질 평가 결과가 아직 생성되지 않았습니다." />}
+        {tab === 6 && <ReadableEvidence value={flood} missing="통합 수문 Feature가 아직 생성되지 않았습니다." />}
       </div>
     </>}
   </section>;
 }
 
+function CascadeView({value}:{value:any}) {
+  if(!value) return <MissingReason text="연쇄영향 분석 결과를 불러오지 못했습니다."/>;
+  const visible=(value.nodes||[]).filter((x:any)=>x.status!=="INACTIVE");
+  return <div className="cascade-view">
+    <div className="cascade-summary"><div><small>운영용 연쇄영향 단계</small><strong>Level {value.cascade_level}</strong><span>{value.cascade_label}</span></div><div><small>활성 경로</small><strong>{value.active_path_count}개</strong></div><div><small>데이터 신뢰도</small><strong>{value.data_confidence}</strong></div></div>
+    <p className="cascade-notice">실제 재난 발생확률이나 공식 재난등급이 아닌, 확보된 데이터 간 조건관계에 따른 운영 영향경로입니다.</p>
+    {(value.paths||[]).length>0?<div className="cascade-paths">{value.paths.map((path:any)=><div className="cascade-path" key={path.path_name}><b>{path.path_name}</b><div>{path.nodes.map((id:string,i:number)=><span key={id}>{i>0&&<i>↓</i>}<em>{(value.nodes||[]).find((x:any)=>x.node_id===id)?.label||id}</em></span>)}</div></div>)}</div>:<MissingReason text="현재 근거에서 끝까지 활성화된 연쇄경로가 없습니다."/>}
+    <div className="cascade-nodes">{visible.map((node:any)=><details key={node.node_id} className={`cascade-node ${node.status.toLowerCase()}`}><summary><b>{node.label}</b><span>{node.status}</span></summary><h4>왜 이 상태인가요?</h4>{node.evidence?.length?<ul>{node.evidence.map((e:any,i:number)=><li key={i}>{e.dataset} · {e.feature}: <b>{String(e.value)}{e.unit?` ${e.unit}`:""}</b></li>)}</ul>:<p>활성화를 뒷받침하는 직접 근거가 없습니다.</p>}{node.missing_evidence?.length>0&&<p className="cascade-missing">부족한 근거: {node.missing_evidence.join(", ")}</p>}</details>)}</div>
+    {value.priorities?.length>0&&<div className="cascade-priority"><b>운영 점검 우선순위</b><ol>{value.priorities.map((x:string)=><li key={x}>{x}</li>)}</ol><small>공식 안전점검 지침을 대체하지 않습니다.</small></div>}
+  </div>;
+}
+
 function scoreText(value: unknown) { return value == null ? "자료 부족" : fmt(Number(value)); }
+
+function isCompleteNarrative(answer: string, stopReason?: string) {
+  if (!answer || answer.length < 180 || stopReason === "max_tokens") return false;
+  const plain = answer.replace(/[\s*_#>`-]+$/g, "").trim();
+  return /[.!?。다요됨임함음]$/.test(plain);
+}
 
 function buildVerifiedNarrative(detail: Detail, flood: any) {
   const assessments = detail.assessments || {};
   const confidence = assessments.data_confidence?.score;
   const resilience = assessments.resilience?.score;
+  const climate = assessments.climate_vulnerability?.score;
+  const facility = assessments.facility_vulnerability?.score;
+  const resilienceGrade = assessments.resilience?.grade;
+  const resilienceFactors = factorRows(assessments.resilience?.explanation);
+  const climateFactors = factorRows(assessments.climate_vulnerability?.explanation);
+  const facilityFeatures = assessments.facility_vulnerability?.features || {};
+  const confidenceFeatures = assessments.data_confidence?.features || {};
   const sentences: string[] = [];
-  sentences.push(`${detail.complex_name}의 회복력은 ${resilience == null ? "자료 부족으로 확정할 수 없으며" : `${Number(resilience).toFixed(1)}점이며`}, 이 값은 재난 발생확률이 아닌 운영 우선순위 지수입니다.`);
+  sentences.push(`${detail.complex_name}의 Re:Safe 회복력은 ${resilience == null ? "산정 자료가 부족합니다" : `${Number(resilience).toFixed(1)}점(${resilienceGrade || "등급 미확인"})입니다`}. 회복력 점수가 낮을수록 우선 점검 필요성이 크며, 실제 재난 발생확률은 아닙니다.`);
+  if (resilienceFactors.length) {
+    const top = resilienceFactors.slice(0, 3).map((x:any) => `${x.label} ${numberText(x.value)}${x.points == null ? "" : `·반영 ${numberText(x.points)}`}`).join(", ");
+    sentences.push(`회복력 저하에 크게 반영된 구성요소는 ${top} 순입니다.`);
+  }
+  if (climate != null) {
+    const parts = climateFactors.slice(0, 2).map((x:any) => `${x.label} ${numberText(x.value)}`).join(", ");
+    sentences.push(`기후재난 취약성은 ${Number(climate).toFixed(1)}점이며${parts ? `, 세부 근거는 ${parts}입니다` : ""}.`);
+  }
+  if (facility != null) {
+    const elevators = facilityFeatures.elevator_count;
+    const corrective = facilityFeatures.corrective_action_count;
+    sentences.push(`시설 취약성은 ${Number(facility).toFixed(1)}점입니다.${elevators != null ? ` 연결 승강기 ${elevators}대` : ""}${corrective != null ? `, 시정조치 이력 ${corrective}건` : ""}을 근거로 산정했으며 고장확률은 아닙니다.`);
+  }
   if (detail.latitude == null || detail.longitude == null) sentences.push("검증된 단지 좌표가 없어 DEM 고도, 침수흔적 중첩, 주변 하천·배수펌프장 거리 분석을 수행할 수 없습니다.");
   else if (flood?.historical_flood_overlap) sentences.push("공식 침수흔적 공간정보와 단지 위치가 중첩되어 과거 침수 노출을 우선 확인해야 합니다.");
   else sentences.push("현재 확보된 공식 침수흔적에서는 단지 위치의 직접 중첩이 확인되지 않았습니다.");
-  if (confidence != null && Number(confidence) < 35) sentences.push(`데이터 신뢰도는 ${Number(confidence).toFixed(1)}점으로 낮아, 낮은 회복력 점수의 상당 부분이 데이터 부족에서 비롯됐을 수 있습니다.`);
+  if (confidence != null) {
+    const missing = Object.entries(confidenceFeatures).filter(([,v]) => Number(v) === 0).map(([k]) => humanizeFactor(k)).slice(0, 4);
+    sentences.push(`데이터 신뢰도는 ${Number(confidence).toFixed(1)}점입니다.${missing.length ? ` 현재 보강이 필요한 항목은 ${missing.join(", ")}입니다.` : " 주요 입력자료가 연결되어 있습니다."}`);
+  }
   const pumpDistance = flood?.distance_to_nearest_pump_station_m;
   if (pumpDistance != null) sentences.push(`가장 가까운 배수펌프장은 약 ${Math.round(Number(pumpDistance))}m 거리에 있습니다.`);
-  sentences.push("우선 조치로 단지 좌표와 시설 식별자를 현장대장으로 확인하고, 배수시설 및 승강기 검사 이력을 재점검하는 것이 필요합니다.");
+  sentences.push("우선 조치로 배수시설의 현장 작동상태를 확인하고, 승강기 검사·시정권고 이력과 최신 수문 관측값을 재점검해야 합니다.");
   return sentences.join(" ");
 }
+
+function factorRows(value: any) {
+  const rows = Array.isArray(value) ? value : Array.isArray(value?.top_factors) ? value.top_factors : [];
+  return rows.map((x:any) => ({
+    label: String(x?.label || humanizeFactor(String(x?.factor || "기타 요인"))),
+    value: numeric(x?.value),
+    points: numeric(x?.contribution_points),
+  })).filter((x:any) => x.value != null || x.points != null).sort((a:any,b:any) => (b.points ?? b.value ?? 0) - (a.points ?? a.value ?? 0));
+}
+function numeric(value:any) { const n=Number(value); return value == null || value === "" || !Number.isFinite(n) ? null : n; }
+function numberText(value:number|null) { return value == null ? "자료 부족" : `${value.toFixed(1)}점`; }
+function humanizeFactor(key:string) { const labels:Record<string,string>={climate_vulnerability:"기후재난 취약성",terrain_drainage_vulnerability:"지형·배수 취약성",facility_vulnerability:"시설 취약성",historical_exposure:"공식 침수이력",data_uncertainty:"데이터 불확실성",coordinate_validation:"좌표 검증",dem_coverage:"DEM 피복",rain_availability:"강우 관측",rain_freshness:"강우 최신성",sewer_availability:"하수관 수위",sewer_freshness:"하수 수위 최신성",river_level_availability:"하천 수위",facility_linkage:"시설 연결",kapt_linkage:"공동주택 코드 연결"};return labels[key]||key.replaceAll("_"," "); }
 
 function buildEvidence(detail: Detail | null, flood: any) {
   if (!detail) return [];

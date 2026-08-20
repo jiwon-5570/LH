@@ -234,6 +234,8 @@ def ai_chat(payload: ChatRequest, db: Session = Depends(get_db)):
             complex_item=db.get(Complex,payload.complex_id); link=db.get(ComplexDataLink,payload.complex_id)
             if complex_item: context["complex"]={"id":complex_item.complex_id,"name":complex_item.complex_name,"address":complex_item.address}
             if link: context["data_link"]={c.name:getattr(link,c.name) for c in ComplexDataLink.__table__.columns}
+        from backend.app.services.cascading_risk_service import analyze_realtime_cascade
+        context["cascade"] = analyze_realtime_cascade(db, payload.complex_id, persist=False)
     if payload.scenario_id:
         scenario_rows = db.scalars(select(StressTestRun).where(StressTestRun.run_id.like(f"{payload.scenario_id}:%"))).all()
         context["scenario"] = {
@@ -248,12 +250,24 @@ def ai_chat(payload: ChatRequest, db: Session = Depends(get_db)):
         }
     try:
         from anthropic import Anthropic
-        message=Anthropic(api_key=settings.anthropic_api_key).messages.create(model=settings.claude_model,max_tokens=900,system="당신은 LH-PREDICT RESILIENCE — SEOUL 안전 관제 보조자다. 제공된 구조화 JSON 사실만 사용한다. 점수나 확률을 직접 계산하거나 누락값을 추정하지 않는다. 회복력은 composite index, 시설 취약도는 고장확률이 아님을 명시하고 데이터 기준시각·품질·한계를 함께 설명한다.",messages=[{"role":"user","content":f"데이터 컨텍스트: {json.dumps(context, ensure_ascii=False, default=str)}\n\n질문: {payload.question}"}])
-        answer="".join(block.text for block in message.content if getattr(block,"type","")=="text")
+        message = Anthropic(api_key=settings.anthropic_api_key).messages.create(
+            model=settings.claude_model,
+            max_tokens=2000,
+            system=(
+                "당신은 LH-PREDICT RESILIENCE — SEOUL의 안전 분석 설명 보조자다. "
+                "제공된 구조화 JSON 사실만 사용하고 새로운 점수, 확률, 관측값, 연쇄 Node를 만들지 않는다. "
+                "회복력은 운영 의사결정용 복합지수이고 시설 취약도는 고장확률이 아님을 명시한다. "
+                "한국어 완결문 4~6개로 작성하고 핵심 취약요인, 근거 수치, 데이터 한계, 우선 점검 조치 두 가지를 포함한다. "
+                "마크다운 제목이나 표는 사용하지 말고 마지막 문장을 반드시 마침표로 끝낸다."
+            ),
+            messages=[{"role":"user","content":f"검증 데이터 컨텍스트:\n{json.dumps(context, ensure_ascii=False, default=str)}\n\n사용자 질문:\n{payload.question}"}],
+        )
+        answer = "".join(block.text for block in message.content if getattr(block, "type", "") == "text").strip()
+        stop_reason = getattr(message, "stop_reason", None)
     except Exception as exc:
         raise HTTPException(502, f"Claude 호출 실패: {type(exc).__name__}") from exc
     item=AIConversation(conversation_id=uuid.uuid4().hex,complex_id=payload.complex_id,question=payload.question,answer=answer,created_at=datetime.now(UTC));db.add(item);db.commit()
-    return {"conversation_id":item.conversation_id,"answer":answer,"created_at":item.created_at}
+    return {"conversation_id":item.conversation_id,"answer":answer,"created_at":item.created_at,"stop_reason":stop_reason}
 
 @router.get("/ai/conversations")
 def conversations(db: Session = Depends(get_db)):

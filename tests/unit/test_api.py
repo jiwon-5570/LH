@@ -1,9 +1,13 @@
 import os
 
 os.environ["DATABASE_URL"] = "sqlite:///:memory:"
+from datetime import UTC, datetime
+
 from fastapi.testclient import TestClient
 
 from backend.app.api.v1.router import _safe_failure_reason
+from backend.app.db.base import Complex, SeoulComplexProfile
+from backend.app.db.session import SessionLocal
 from backend.app.main import app
 
 
@@ -47,3 +51,17 @@ def test_failure_reason_is_bounded_and_does_not_return_sql_payload():
     reason = "IntegrityError: duplicate row\n[SQL: INSERT INTO source_records ...]" + "x" * 1000
     assert _safe_failure_reason(reason) == "IntegrityError: duplicate row"
     assert len(_safe_failure_reason("x" * 1000)) == 500
+
+
+def test_cascade_api_returns_evidence_graph_contract():
+    now = datetime.now(UTC)
+    with TestClient(app) as client:
+        with SessionLocal() as db:
+            db.merge(Complex(complex_id="cascade-api",complex_name="검증단지",address="서울특별시",latitude=None,longitude=None,source_name="test",source_url=None,collected_at=now,observed_at=None,data_version="test",validation_status="valid",collection_run_id="test"))
+            db.merge(SeoulComplexProfile(complex_id="cascade-api",complex_name="검증단지",address="서울특별시",normalized_address="서울특별시",latitude=None,longitude=None,district=None,household_count=None,building_count=None,completion_date=None,building_age_years=None,kapt_code=None,analysis_eligible=True,eligibility_reason="test",validation_status="ADDRESS_ONLY",source_name="test",data_version="test",updated_at=now)); db.commit()
+        response = client.get("/api/v1/seoul/complexes/cascade-api/cascade")
+        assert response.status_code == 200
+        body = response.json()
+        assert body["method_type"] == "evidence_graph"
+        assert body["method_version"] == "cascade-v1"
+        assert all("evidence" in node and "missing_evidence" in node for node in body["nodes"])

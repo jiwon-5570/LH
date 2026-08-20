@@ -73,3 +73,10 @@
 - 실시간 Feature Snapshot을 복사하고 동적 Feature만 변경한 뒤 기후 취약성과 회복력을 재계산한다.
 - 결과를 `USER_SCENARIO`, `composite_scenario`, `scenario-baseline-v1`으로 표시하고 기존 `risk_assessments`는 변경하지 않는다.
 - React 대시보드에 입력 패널, 전후 KPI, 시나리오 지도, 영향 TOP 5를 연결했다.
+# 2026-08-21 — Cascading Risk Engine v1
+
+- 신규 외부 데이터 없이 Terrain, FloodSpatial, HistoricalFlood, RainPump, RiskAssessment, ComplexDataLink, StressTestRun을 결합하는 `evidence_graph/cascade-v1`을 구현했다.
+- Node는 `ACTIVE/WATCH/INACTIVE/INSUFFICIENT/REVIEW_REQUIRED`만 사용하며 확률을 만들지 않는다.
+- `CascadeAnalysisRun`, `CascadePath`에 입력·결과·경로·근거를 저장한다.
+- 현재 운영 DB 125개 단지 분석 결과: Level 0 44개, Level 1 81개, Level 2~5 0개. 모든 단지에 하나 이상의 부족 근거가 있으며 이는 현재 동적 수문 기준정보 한계를 정직하게 반영한 결과다.
+- 단지 상세에 연쇄경로, Node 근거, 부족 근거, 운영 점검 우선순위를 추가했다.
