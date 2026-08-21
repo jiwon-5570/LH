@@ -20,7 +20,7 @@ if (-not (Test-Path $venvPython)) {
 }
 
 Write-Host '[2/4] Checking backend and React dependencies...'
-& $venvPython -c 'import fastapi, uvicorn, dotenv, anthropic' 2>$null
+& $venvPython -c 'import fastapi, uvicorn, dotenv, anthropic, reportlab' 2>$null
 if ($LASTEXITCODE -ne 0) {
     & $venvPython -m pip install -r requirements.txt
     if ($LASTEXITCODE -ne 0) { throw 'Python package installation failed.' }
@@ -38,11 +38,18 @@ try {
     $backendReady = $false
     try {
         $existingHealth = Invoke-WebRequest -UseBasicParsing -Uri 'http://127.0.0.1:8000/health' -TimeoutSec 2
-        $backendReady = $existingHealth.StatusCode -eq 200
+        $existingOpenApi = Invoke-WebRequest -UseBasicParsing -Uri 'http://127.0.0.1:8000/openapi.json' -TimeoutSec 3
+        $backendReady = $existingHealth.StatusCode -eq 200 -and `
+            $existingOpenApi.Content.Contains('/api/v1/seoul/reports/generate')
     } catch {}
     if ($backendReady) {
         Write-Host '[3/4] Reusing FastAPI: http://127.0.0.1:8000'
     } else {
+        $staleBackend = Get-NetTCPConnection -LocalPort 8000 -State Listen -ErrorAction SilentlyContinue | Select-Object -First 1
+        if ($staleBackend) {
+            Write-Host '[3/4] Replacing stale FastAPI process...'
+            Stop-Process -Id $staleBackend.OwningProcess -Force -ErrorAction Stop
+        }
         Write-Host '[3/4] Starting FastAPI: http://127.0.0.1:8000'
         $backend = Start-Process -FilePath $venvPython `
             -ArgumentList @('-m','uvicorn','backend.app.main:app','--host','127.0.0.1','--port','8000') `
