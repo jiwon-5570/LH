@@ -197,6 +197,28 @@ def build_report_payload(
                 "evidence": {"vulnerable": summary["vulnerable"]},
             }
         )
+    if summary["average_resilience"] is not None:
+        findings.append(
+            {
+                "text": (
+                    f"분석 가능 {summary['analysis_available']}개 단지의 평균 Re:Safe 점수는 "
+                    f"{summary['average_resilience']}점이며, 양호 {summary['good']}개·보통 {summary['normal']}개·"
+                    f"주의 {summary['caution']}개·취약 {summary['vulnerable']}개로 분포합니다."
+                ),
+                "evidence": {"summary": summary},
+            }
+        )
+    if ranking:
+        lowest = ranking[0]
+        findings.append(
+            {
+                "text": (
+                    f"현재 범위에서 가장 낮은 Re:Safe 점수는 {lowest['complex_name']}의 "
+                    f"{lowest['score']}점({lowest['grade']})입니다. 이는 상대적 점검 우선순위이며 재난 확률이 아닙니다."
+                ),
+                "evidence": lowest,
+            }
+        )
     if scope_type == "complex":
         findings += [
             {
@@ -223,6 +245,21 @@ def build_report_payload(
                 "reason": "데이터 부족 단지 존재",
                 "evidence": {"count": summary["insufficient"]},
             }
+        ]
+    if not recommendations and ranking:
+        recommendations = [
+            {
+                "priority": 1,
+                "text": f"Re:Safe 점수가 낮은 {ranking[0]['complex_name']}부터 세부 근거와 현장 상태를 확인합니다.",
+                "reason": "현재 분석 범위의 Re:Safe 오름차순 1위",
+                "evidence": ranking[0],
+            },
+            {
+                "priority": 2,
+                "text": "주의·취약 등급 단지는 최신 강우·수위·배수시설 상태를 재확인하고 점검 결과를 기록합니다.",
+                "reason": f"주의 {summary['caution']}개, 취약 {summary['vulnerable']}개",
+                "evidence": {"caution": summary["caution"], "vulnerable": summary["vulnerable"]},
+            },
         ]
     used_sources = []
     names = {
@@ -275,7 +312,58 @@ def build_report_payload(
 def _fallback_explanation(payload):
     s = payload["summary"]
     scope = payload["scope"]["label"]
-    return f"{scope}의 실제 운영 DB 기준 분석 대상은 {s['total_complexes']}개이며, Re:Safe 산정 가능 단지는 {s['analysis_available']}개입니다. 평균은 {s['average_resilience'] if s['average_resilience'] is not None else '데이터 부족'}점입니다. 이 수치는 실제 재난 발생확률이 아닌 운영 의사결정용 복합지수입니다. 데이터 부족 항목은 현장점검과 원천자료 보강 후 재평가해야 합니다."
+    average = f"{s['average_resilience']}점" if s["average_resilience"] is not None else "데이터 부족"
+    ranking = payload.get("ranking") or []
+    lowest = ranking[0] if ranking else None
+    comparison = payload.get("comparison") or {}
+    factors = payload.get("top_factors") or []
+    lines = [
+        "[종합 판단]",
+        (
+            f"{scope}의 실제 운영 DB 기준 분석 대상은 {s['total_complexes']}개이며, Re:Safe 산정 가능 단지는 "
+            f"{s['analysis_available']}개입니다. 평균은 {average}이고 취약 {s['vulnerable']}개, 주의 "
+            f"{s['caution']}개, 보통 {s['normal']}개, 양호 {s['good']}개로 분포합니다."
+        ),
+        "",
+        "[핵심 근거]",
+    ]
+    if lowest:
+        lines.append(
+            f"현재 범위에서 점검 우선순위가 가장 높은 단지는 {lowest['complex_name']}이며 "
+            f"Re:Safe {lowest['score']}점({lowest['grade']})입니다."
+        )
+    if comparison.get("selected") is not None:
+        lines.append(
+            f"선택 단지는 {comparison['selected']}점, 같은 자치구 평균은 "
+            f"{comparison.get('district_average', '데이터 부족')}점, 서울 평균은 "
+            f"{comparison.get('seoul_average', '데이터 부족')}점입니다."
+        )
+    if factors:
+        factor_text = ", ".join(
+            f"{item['label']} {item['value'] if item['value'] is not None else item['contribution']}"
+            f"{item.get('unit') or ''}"
+            for item in factors[:3]
+        )
+        lines.append(f"주요 반영 요인은 {factor_text}입니다.")
+    if s["insufficient"]:
+        lines.append(f"{s['insufficient']}개 단지는 산정 근거가 부족하므로 값 대신 데이터 부족으로 관리합니다.")
+    lines.extend(
+        [
+            "",
+            "[우선 조치]",
+            (
+                "낮은 점수 단지부터 원천 데이터의 최신성을 확인하고, 활성 수문·침수·시설 근거가 있는 항목을 "
+                "현장에서 우선 점검한 뒤 결과를 다시 평가해야 합니다."
+            ),
+            "",
+            "[해석상 주의]",
+            (
+                "Re:Safe 점수는 실제 재난 발생확률이나 법정 안전진단 결과가 아닌 운영 의사결정용 복합지수입니다. "
+                "AI는 DB와 분석 엔진이 계산한 결과를 설명할 뿐 새로운 점수·확률·시설 상태를 만들지 않습니다."
+            ),
+        ]
+    )
+    return "\n".join(lines)
 
 
 def _ai_explanation(payload: dict) -> str:
@@ -291,6 +379,8 @@ def _ai_explanation(payload: dict) -> str:
         "top_factors": payload["top_factors"],
         "cascade": payload["cascade"],
         "findings": payload["findings"],
+        "ranking": payload["ranking"],
+        "recommendations": payload["recommendations"],
         "limitations": payload["limitations"],
     }
     try:
@@ -298,12 +388,14 @@ def _ai_explanation(payload: dict) -> str:
 
         message = Anthropic(api_key=settings.anthropic_api_key).messages.create(
             model=settings.claude_model,
-            max_tokens=700,
+            max_tokens=1200,
             temperature=0,
             system=(
                 "당신은 LH 재난안전 분석 해설자입니다. 제공된 JSON 수치만 사용하고, 없는 값은 "
                 "'데이터 부족'이라고 쓰세요. 확률·인과관계를 새로 만들지 말고, 회복력 점수는 상대적 "
-                "운영 선별지수임을 명시하세요. 한국어로 핵심 근거, 비교, 우선 조치를 3개 짧은 문단으로 설명하세요."
+                "운영 선별지수임을 명시하세요. 한국어로 [종합 판단], [핵심 근거], [비교 해석], "
+                "[우선 조치], [해석상 주의] 순서로 구체적으로 작성하세요. 수치와 단지명을 가능한 한 "
+                "명시하되 JSON에 없는 내용은 만들지 마세요."
             ),
             messages=[{"role": "user", "content": json.dumps(evidence, ensure_ascii=False, default=str)}],
         )

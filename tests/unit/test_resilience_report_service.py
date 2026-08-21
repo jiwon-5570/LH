@@ -96,6 +96,9 @@ def test_seoul_report_excludes_missing_scores_from_average():
         "insufficient": 1,
     }
     assert [row["complex_id"] for row in report["ranking"]] == ["A", "B"]
+    assert "[종합 판단]" in report["ai_explanation"]
+    assert "가단지" in report["ai_explanation"]
+    assert report["recommendations"][0]["evidence"]
     db.close()
 
 
