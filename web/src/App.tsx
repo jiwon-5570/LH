@@ -163,7 +163,56 @@ function RiskFeed({predictions,complexes,onSelect}:{predictions:Prediction[];com
 
 function AiChat({complexes}:{complexes:Complex[]}) { const [target,setTarget]=useState(""); const [input,setInput]=useState(""); const [messages,setMessages]=useState<{role:string;text:string}[]>([]); const [busy,setBusy]=useState(false); const submit=async()=>{if(!input.trim())return;const q=input;setInput("");setMessages(m=>[...m,{role:"user",text:q}]);setBusy(true);try{const r=await api<any>("/api/v1/ai/chat",{method:"POST",body:JSON.stringify({question:q,complex_id:target||null,scenario_id:sessionStorage.getItem("active_scenario_id")})});setMessages(m=>[...m,{role:"ai",text:r.answer}]);}catch(e:any){setMessages(m=>[...m,{role:"ai",text:`오류: ${e.message}`}]);}finally{setBusy(false)}};return <Page title="AI Chat" subtitle="Claude가 운영 DB의 검증 근거를 바탕으로 답변합니다."><section className="panel chat"><select value={target} onChange={e=>setTarget(e.target.value)}><option value="">전체 단지</option>{complexes.map(x=><option value={x.complex_id} key={x.complex_id}>{x.complex_name}</option>)}</select><div className="messages">{messages.length?messages.map((m,i)=><div className={m.role} key={i}>{m.text}</div>):<Empty text="질문을 입력하면 근거 기반 답변이 표시됩니다."/>}</div><div className="chat-input"><input value={input} onChange={e=>setInput(e.target.value)} onKeyDown={e=>e.key==="Enter"&&submit()} placeholder="안전·침수·시설 관련 질문"/><button onClick={submit} disabled={busy}><Send/></button></div></section></Page>; }
 
-function Reports({complexes}:{complexes:Complex[]}) { const [target,setTarget]=useState(""); const [created,setCreated]=useState<any>(null); const [busy,setBusy]=useState(false); const create=async()=>{setBusy(true);try{setCreated(await api<any>("/api/v1/reports",{method:"POST",body:JSON.stringify({report_type:"comprehensive",complex_id:target||null})}));}finally{setBusy(false)}};return <Page title="AI 회복력 보고서" subtitle="현재 운영 DB 스냅샷으로 근거 보고서를 생성합니다."><section className="panel form-panel"><select value={target} onChange={e=>setTarget(e.target.value)}><option value="">서울 종합</option>{complexes.map(x=><option value={x.complex_id} key={x.complex_id}>{x.complex_name}</option>)}</select><button className="primary" onClick={create} disabled={busy}>{busy?"생성 중…":"보고서 생성"}</button>{created&&<a className="download" href={created.download_url}>생성된 보고서 다운로드</a>}</section></Page>; }
+function Reports({complexes}:{complexes:Complex[]}) {
+  const [reportType,setReportType]=useState("resilience");
+  const [scopeType,setScopeType]=useState("seoul");
+  const [district,setDistrict]=useState("");
+  const [target,setTarget]=useState("");
+  const [referenceDate,setReferenceDate]=useState("");
+  const [created,setCreated]=useState<any>(null);
+  const [busy,setBusy]=useState(false);
+  const [error,setError]=useState("");
+  const districts=useMemo(()=>Array.from(new Set(complexes.map(x=>x.district).filter(Boolean) as string[])).sort(),[complexes]);
+  const candidates=useMemo(()=>district?complexes.filter(x=>x.district===district):complexes,[complexes,district]);
+  const create=async()=>{
+    const scopeValue=scopeType==="district"?district:scopeType==="complex"?target:null;
+    if(scopeType!=="seoul"&&!scopeValue){setError(scopeType==="district"?"자치구를 선택하세요.":"단지를 선택하세요.");return;}
+    setBusy(true);setError("");
+    try{setCreated(await api<any>("/api/v1/seoul/reports/generate",{method:"POST",body:JSON.stringify({report_type:reportType,scope_type:scopeType,scope_value:scopeValue,reference_date:referenceDate||null})}));}
+    catch(e:any){setError(e.message||String(e));}
+    finally{setBusy(false);}
+  };
+  const summary=created?.summary;
+  return <Page title="AI 회복력 보고서" subtitle="서울·자치구·단지 단위의 운영 DB 근거를 스냅샷으로 저장하고 HTML/PDF 보고서를 생성합니다.">
+    <section className="panel report-builder">
+      <div className="report-controls">
+        <label>보고서 유형<select value={reportType} onChange={e=>setReportType(e.target.value)}><option value="resilience">종합 회복력</option><option value="climate">기후재난</option><option value="facility">시설 취약성</option><option value="cascade">복합재난 연쇄영향</option></select></label>
+        <label>분석 범위<select value={scopeType} onChange={e=>{setScopeType(e.target.value);setCreated(null)}}><option value="seoul">서울 전체</option><option value="district">자치구</option><option value="complex">개별 단지</option></select></label>
+        {scopeType!=="seoul"&&<label>자치구<select value={district} onChange={e=>{setDistrict(e.target.value);setTarget("")}}><option value="">선택</option>{districts.map(x=><option key={x}>{x}</option>)}</select></label>}
+        {scopeType==="complex"&&<label>단지<select value={target} onChange={e=>setTarget(e.target.value)}><option value="">선택</option>{candidates.map(x=><option value={x.complex_id} key={x.complex_id}>{x.complex_name}</option>)}</select></label>}
+        <label>기준일<input type="date" value={referenceDate} onChange={e=>setReferenceDate(e.target.value)}/></label>
+        <button className="primary" onClick={create} disabled={busy}>{busy?"검증·생성 중…":"보고서 생성"}</button>
+      </div>
+      {error&&<div className="error-box">{error}</div>}
+    </section>
+    {!created?<section className="panel report-empty"><FileText/><b>생성된 보고서가 없습니다.</b><span>범위를 선택하면 실제 DB에서 집계하고 결과 스냅샷을 저장합니다.</span></section>:
+    <div className="report-result">
+      <section className="panel report-title"><div><span className="eyebrow">{created.report_type_label}</span><h2>{created.scope.label}</h2><p>기준 시각 {created.reference_time?new Date(created.reference_time).toLocaleString("ko-KR"):"데이터 부족"} · {created.freshness}</p></div><div className="report-downloads"><a href={created.html_download_url}>HTML 다운로드</a><a className="primary" href={created.pdf_download_url}>PDF 다운로드</a></div></section>
+      <div className="report-kpis"><Kpi icon={<Building2/>} label="대상 단지" value={summary.total_complexes} color="#2575eb"/><Kpi icon={<ShieldCheck/>} label="분석 가능" value={summary.analysis_available} color="#22a06b"/><Kpi icon={<TriangleAlert/>} label="취약·주의" value={summary.vulnerable+summary.caution} color="#e5484d"/><Kpi icon={<Database/>} label="데이터 부족" value={summary.insufficient} color="#7c4dff"/></div>
+      <div className="report-grid">
+        <section className="panel"><div className="panel-head"><h2>AI 근거 해설</h2><span>Claude 실패 시 규칙 기반 해설</span></div><p className="report-explanation">{created.ai_explanation}</p></section>
+        <section className="panel"><div className="panel-head"><h2>핵심 지표</h2></div><dl className="report-metrics"><div><dt>평균 Re:Safe</dt><dd>{summary.average_resilience??"데이터 부족"}</dd></div><div><dt>취약</dt><dd>{summary.vulnerable}개</dd></div><div><dt>주의</dt><dd>{summary.caution}개</dd></div><div><dt>양호</dt><dd>{summary.good}개</dd></div></dl></section>
+      </div>
+      {scopeType==="complex"&&created.detail?.profile?.latitude!=null&&<section className="panel report-map"><div className="panel-head"><h2>선택 단지 위치</h2></div><NaverMap rows={complexes.filter(x=>x.complex_id===target)} onSelect={()=>{}}/></section>}
+      <div className="report-grid">
+        <section className="panel"><div className="panel-head"><h2>주요 발견사항</h2></div><ol className="report-list">{created.findings.length?created.findings.map((x:any,i:number)=><li key={i}>{x.text}</li>):<li>확정 가능한 추가 발견사항 없음</li>}</ol></section>
+        <section className="panel"><div className="panel-head"><h2>우선 권고사항</h2></div><ol className="report-list">{created.recommendations.length?created.recommendations.map((x:any)=><li key={x.priority}><b>{x.priority}순위</b> {x.text}<small>{x.reason}</small></li>):<li>현재 근거에서 추가 권고사항 없음</li>}</ol></section>
+      </div>
+      <section className="panel"><div className="panel-head"><h2>취약 단지 순위</h2><span>낮은 회복력 점수 순</span></div><div className="table"><div className="tr th"><span>단지명</span><span>자치구</span><span>등급</span><span>점수</span></div>{created.ranking.map((x:any)=><div className="tr" key={x.complex_id}><b>{x.complex_name}</b><span>{x.district||"미확인"}</span><span>{x.grade}</span><strong>{x.score}</strong></div>)}</div></section>
+      <section className="panel report-foot"><div><h2>데이터 출처</h2>{created.data_sources.map((x:any)=><span key={x.name}>{x.name} · {x.status}</span>)}</div><div><h2>분석 한계</h2>{created.limitations.map((x:string,i:number)=><p key={i}>· {x}</p>)}</div></section>
+    </div>}
+  </Page>;
+}
 function DataManagement({quality,hydrology}:{quality:any;hydrology:any}) {
   const runs:any[]=quality?.collection_runs||[];
   const latestRuns=Array.from(runs.reduce((latest:Map<string,any>,run:any)=>{

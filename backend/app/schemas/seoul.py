@@ -1,4 +1,5 @@
-from datetime import datetime
+from datetime import date, datetime
+from typing import Literal
 
 from pydantic import BaseModel, Field
 
@@ -106,3 +107,38 @@ class ScenarioRunResponse(BaseModel):
     base_summary: ScenarioSummary
     scenario_summary: ScenarioSummary
     complex_results: list[ScenarioComplexResult]
+
+
+class ResilienceReportRequest(BaseModel):
+    report_type: Literal["resilience", "climate", "facility", "cascade"] = "resilience"
+    scope_type: Literal["seoul", "district", "complex"] = "seoul"
+    scope_value: str | None = None
+    reference_date: date | None = None
+
+
+class ResilienceReportResponse(BaseModel):
+    report_id: str
+    report_type: str
+    report_type_label: str
+    scope_type: str
+    scope: dict
+    generated_at: datetime | str
+    reference_time: datetime | str | None
+    reference_date: str | None
+    freshness: str
+    summary: dict
+    comparison: dict
+    distribution: dict
+    ranking: list[dict]
+    findings: list[dict]
+    recommendations: list[dict]
+    cascade: dict
+    top_factors: list[dict]
+    detail: dict
+    methodology: dict
+    data_sources: list[dict]
+    limitations: list[str]
+    report_version: str
+    ai_explanation: str
+    html_download_url: str
+    pdf_download_url: str

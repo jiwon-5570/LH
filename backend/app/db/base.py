@@ -104,6 +104,18 @@ class ReportArtifact(Base):
     file_path: Mapped[str] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
 
+
+class ResilienceReportSnapshot(Base):
+    __tablename__ = "resilience_report_snapshots"
+    report_id: Mapped[str] = mapped_column(ForeignKey("report_artifacts.report_id"), primary_key=True)
+    scope_type: Mapped[str] = mapped_column(String(20), index=True)
+    scope_value: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    report_version: Mapped[str] = mapped_column(String(40), default="resilience-report-v1")
+    payload_snapshot: Mapped[dict] = mapped_column(JSON)
+    reference_time: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    pdf_path: Mapped[str | None] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+
 class SourceRecord(Base):
     __tablename__ = "source_records"
     source_record_key: Mapped[str] = mapped_column(String(180), primary_key=True)

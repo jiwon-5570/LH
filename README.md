@@ -47,7 +47,7 @@
 | 모델 운영 승인 | 구현 | `validated=true`가 아닌 산출물 사용 차단 |
 | 공공 API별 수집기 | 미구현 | API 키, 제공기관 명세 및 이용 승인이 필요 |
 | AI 안전 관제 | 비활성 | 실제 조회 도구와 Claude 연결 미구현, API는 503 반환 |
-| AI 보고서/PDF | 비활성 | 실제 예측 스냅샷과 보고서 파이프라인 미구현 |
+| AI 회복력 보고서/PDF | 구현 | 서울·자치구·단지별 실제 DB 집계, 스냅샷, HTML/PDF, Claude 실패 fallback |
 | 전체 DB 28개 테이블/Alembic | 미구현 | 현재 단지·예측·경보 핵심 모델만 구현 |
 | 실제 모델 성능 | 없음 | 실제 학습 데이터와 외부검증 결과가 없음 |
 
@@ -75,6 +75,18 @@ lowland_index_R = clamp(-relative_elevation_R / (2 × R 반경 표고 표준편�
 Resilience v3는 공식 침수흔적도와 단지 좌표의 최근접 거리, 점 교차 여부, 100/300/500m 겹침 면적비와 연도 이력을 Historical Exposure 근거로 사용합니다. 이 값은 침수확률이 아닌 운영 근접지수입니다. 누락 구성요소는 임의 50점으로 대체하지 않고 가용 구성요소 가중치를 재정규화합니다. Climate Stress Scenario는 Feature 변화만 저장하고 검증 Flood ML 전에는 `scenario_score=null`, `NOT_READY`입니다.
 
 현재 구현 범위를 넘어선 기능을 완료한 것으로 간주하면 안 됩니다.
+
+### 다중 범위 AI 회복력 보고서 (2026-08-21)
+
+- 범위: 서울 전체, 자치구, 개별 단지
+- 유형: 종합 회복력, 기후재난, 시설 취약성, 복합재난 연쇄영향
+- API: `POST /api/v1/seoul/reports/generate`, `GET /api/v1/seoul/reports/{report_id}`
+- 다운로드: 보고서별 HTML과 한글 PDF
+- 재현성: 생성 당시 전체 payload와 기준 시각을 `resilience_report_snapshots`에 보존
+- 결측 처리: 평균에서 제외하고 `insufficient`로 별도 집계하며 값을 임의 보간하지 않음
+- AI 역할: 검증된 구조화 결과만 자연어로 설명하며, 키 미설정·호출 실패 시 동일 근거의 규칙 기반 해설 사용
+
+보고서 화면은 `AI 회복력 보고서` 메뉴에서 보고서 유형과 분석 범위를 선택해 생성합니다. PDF 생성에는 `reportlab`이 필요하므로 의존성 변경 후 `pip install -r requirements.txt`를 다시 실행합니다.
 
 ## 3. 데이터 원칙
 
