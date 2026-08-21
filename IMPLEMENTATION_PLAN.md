@@ -52,5 +52,38 @@ Day 1 구조·정직성 게이트, Day 2 DB/API, Day 3~6 실제 수집·매칭, 
 - [x] Rain-pump 500m/1km/2km proximity features
 - [x] Compact `flood_spatial_features` DB table
 - [x] Six FastAPI detail endpoints and Streamlit evidence tab
-- [ ] Flood forecast, rain-gauge location, pump attributes, river levels: `BLOCKED_BY_DATA`
+- [x] Rain-gauge location and pump attributes: processed/API/feature 연결
+- [ ] Flood forecast: API 속성 2,094건, Geometry 부재로 `PARTIAL_NO_GEOMETRY`
+- [ ] River levels: 관측 22건, 관측소 좌표 부재로 `PARTIAL_NO_LOCATION`
 - [ ] Exact Seoul boundary, 100m grid, negative-sample policy, spatial ML split: `NOT_READY`
+
+## Realtime / Scenario dashboard (2026-08-19)
+
+- [x] 실시간/시나리오 모드 전환 UI
+- [x] 입력 검증 및 서울 전체 단지 일괄 재계산 API
+- [x] 정적 Feature 재사용, 동적 강우·하수·하천 Feature만 변경
+- [x] 실시간 평가와 분리된 `stress_test_runs` 영속화
+- [x] 시나리오 KPI, NAVER 지도 점수, 영향 TOP 5 연결
+- [ ] 검증 Flood ML 확보 후 scenario inference로 승격
+# Cascading Risk Engine v1
+
+- [x] 기존 DB/processed Feature 가용성 감사
+- [x] 결정론적 Evidence Graph와 데이터 부족 상태 구현
+- [x] 실시간·StressTestRun 시나리오 분석 API 구현
+- [x] 분석 실행·경로 DB 저장 구현
+- [x] React 단지 상세 `연쇄영향` 탭 구현
+- [x] Claude 입력에 계산 완료된 Cascade 구조만 포함
+- [x] 부정 테스트: 전기·승강기 고장 Node 생성 금지
+- [ ] 내부설비 위치 데이터 확보 후 세부 기능영향 검증(현재 범위 밖)
+# AI 보고서 출시 단계 (2026-08-21)
+
+- [x] 서울/자치구/단지 범위별 실제 DB 집계
+- [x] 회복력 분포, 순위, 비교, 근거 요인, 연쇄영향, 권고 생성
+- [x] 결측값 제외와 데이터 부족 상태 분리
+- [x] 생성 payload 스냅샷 및 기준 시각 영속화
+- [x] HTML/PDF 렌더링과 다운로드 API
+- [x] Claude 근거 제한 프롬프트 및 실패 fallback
+- [x] React 보고서 생성·결과 화면
+- [x] 단위 테스트와 실제 운영 DB 3개 범위 검증
+- [ ] Alembic 기반 운영 DB 마이그레이션 도입
+- [ ] 외부 PDF 시각회귀 및 접근성 자동검사

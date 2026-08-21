@@ -130,7 +130,7 @@ if ([string]::IsNullOrWhiteSpace($envs.MOIS_FLOOD_TRACE_API_KEY)) {
     $serialized = $moisCall.Json | ConvertTo-Json -Depth 20 -Compress
     $authError = @('SERVICE_KEY_IS_NOT_REGISTERED_ERROR','SERVICE_ACCESS_DENIED_ERROR','DEADLINE_HAS_EXPIRED_ERROR','UNREGISTERED_IP_ERROR','NO_SERVICE_KEY_ERROR') | Where-Object { $serialized -like "*$_*" } | Select-Object -First 1
     if ($authError) { Add-Result '행안부 침수흔적도 API' 'FAIL' "API_ERROR $authError" $moisCall.Http }
-    else { Add-Result '행안부 침수흔적도 API' 'PASS' 'AUTH_OK (SN/FLDN_DOWA 속성 API)' $moisCall.Http }
+    else { Add-Result '행안부 침수흔적도 API' 'PASS' 'AUTH_OK (SN/FLDN_DOWA/GEOM 공간 API)' $moisCall.Http }
   }
 }
 

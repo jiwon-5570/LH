@@ -1,4 +1,5 @@
 import json
+import os
 import uuid
 from datetime import UTC, datetime
 from html import escape
@@ -25,6 +26,7 @@ from backend.app.db.base import (
     ReportArtifact,
     SeoulComplexProfile,
     SourceRecord,
+    StressTestRun,
 )
 from backend.app.db.session import get_db
 from backend.app.schemas.common import AlertOut, ComplexOut, PredictionOut
@@ -32,6 +34,19 @@ from backend.app.services.seoul_resilience_service import latest_assessments, pr
 
 router = APIRouter(prefix="/api/v1")
 router.include_router(seoul_router)
+
+
+@router.get("/frontend-config")
+def frontend_config():
+    """Expose browser-safe public configuration; never return server secrets."""
+    auth_param = os.getenv("NAVER_MAP_AUTH_PARAM", "ncpKeyId").strip()
+    if auth_param not in {"ncpKeyId", "ncpClientId"}:
+        auth_param = "ncpKeyId"
+    return {
+        "naver_map_client_id": os.getenv("NAVER_MAP_CLIENT_ID", "").strip(),
+        "naver_map_auth_param": auth_param,
+        "environment": os.getenv("APP_ENV", "development"),
+    }
 
 @router.get("/complexes", response_model=list[ComplexOut])
 def complexes(limit: int = Query(100, ge=1, le=1000), db: Session = Depends(get_db)):
@@ -162,7 +177,15 @@ def acknowledge(alert_id: str, db: Session = Depends(get_db)):
 def data_quality(db: Session = Depends(get_db)):
     total = db.scalar(select(func.count()).select_from(Complex)) or 0
     latest = db.scalars(select(DataCollectionRun).order_by(DataCollectionRun.started_at.desc()).limit(50)).all()
-    return {"status": "ok" if total else "unavailable", "complex_count": total, "message": "정상" if total else "데이터 미수집", "collection_runs": [{"collection_run_id":x.collection_run_id,"dataset_id":x.dataset_id,"status":x.status,"started_at":x.started_at,"record_count":x.record_count,"valid_count":x.valid_count,"quarantined_count":x.quarantined_count,"failure_reason":x.failure_reason} for x in latest]}
+    return {"status": "ok" if total else "unavailable", "complex_count": total, "message": "정상" if total else "데이터 미수집", "collection_runs": [{"collection_run_id":x.collection_run_id,"dataset_id":x.dataset_id,"status":x.status,"started_at":x.started_at,"record_count":x.record_count,"valid_count":x.valid_count,"quarantined_count":x.quarantined_count,"failure_reason":_safe_failure_reason(x.failure_reason)} for x in latest]}
+
+
+def _safe_failure_reason(reason: str | None, limit: int = 500) -> str | None:
+    """Keep diagnostics useful without returning SQL parameter dumps or huge payloads."""
+    if not reason:
+        return None
+    first_line = reason.splitlines()[0].strip()
+    return first_line if len(first_line) <= limit else f"{first_line[:limit - 1]}…"
 
 @router.get("/data-sources")
 def data_sources():
@@ -173,7 +196,7 @@ def collection_quality(collection_run_id: str, db: Session = Depends(get_db)):
     run = db.get(DataCollectionRun, collection_run_id)
     if not run: raise HTTPException(404, "수집 실행 이력 없음")
     checks = db.scalars(select(DataQualityResult).where(DataQualityResult.collection_run_id == collection_run_id)).all()
-    return {"run":{"collection_run_id":run.collection_run_id,"dataset_id":run.dataset_id,"status":run.status,"record_count":run.record_count,"valid_count":run.valid_count,"quarantined_count":run.quarantined_count,"failure_reason":run.failure_reason},"checks":[{"check_name":x.check_name,"status":x.status,"failed_count":x.failed_count,"details":x.details} for x in checks]}
+    return {"run":{"collection_run_id":run.collection_run_id,"dataset_id":run.dataset_id,"status":run.status,"record_count":run.record_count,"valid_count":run.valid_count,"quarantined_count":run.quarantined_count,"failure_reason":_safe_failure_reason(run.failure_reason)},"checks":[{"check_name":x.check_name,"status":x.status,"failed_count":x.failed_count,"details":x.details} for x in checks]}
 
 @router.get("/data-sources/{dataset_id}/records")
 def source_records(dataset_id: str, limit: int = Query(100, ge=1, le=1000), db: Session = Depends(get_db)):
@@ -196,6 +219,7 @@ def models(db: Session = Depends(get_db)):
 class ChatRequest(BaseModel):
     question: str = Field(min_length=1, max_length=2000)
     complex_id: str | None = None
+    scenario_id: str | None = None
 
 @router.post("/ai/chat")
 def ai_chat(payload: ChatRequest, db: Session = Depends(get_db)):
@@ -210,14 +234,40 @@ def ai_chat(payload: ChatRequest, db: Session = Depends(get_db)):
             complex_item=db.get(Complex,payload.complex_id); link=db.get(ComplexDataLink,payload.complex_id)
             if complex_item: context["complex"]={"id":complex_item.complex_id,"name":complex_item.complex_name,"address":complex_item.address}
             if link: context["data_link"]={c.name:getattr(link,c.name) for c in ComplexDataLink.__table__.columns}
+        from backend.app.services.cascading_risk_service import analyze_realtime_cascade
+        context["cascade"] = analyze_realtime_cascade(db, payload.complex_id, persist=False)
+    if payload.scenario_id:
+        scenario_rows = db.scalars(select(StressTestRun).where(StressTestRun.run_id.like(f"{payload.scenario_id}:%"))).all()
+        context["scenario"] = {
+            "notice": "USER_SCENARIO Stress Test 결과이며 실제 미래 예측 또는 재난 발생확률이 아님",
+            "scenario_id": payload.scenario_id,
+            "results": [{"complex_id": x.complex_id, "scenario_name": x.scenario_type,
+                         "base_score": x.base_score, "scenario_score": x.scenario_score,
+                         "scenario_input": x.modified_features.get("scenario_input"),
+                         "source": x.modified_features.get("source"),
+                         "top_changed_factors": x.modified_features.get("top_changed_factors", [])}
+                        for x in scenario_rows[:125]],
+        }
     try:
         from anthropic import Anthropic
-        message=Anthropic(api_key=settings.anthropic_api_key).messages.create(model=settings.claude_model,max_tokens=900,system="당신은 LH-PREDICT RESILIENCE — SEOUL 안전 관제 보조자다. 제공된 구조화 JSON 사실만 사용한다. 점수나 확률을 직접 계산하거나 누락값을 추정하지 않는다. 회복력은 composite index, 시설 취약도는 고장확률이 아님을 명시하고 데이터 기준시각·품질·한계를 함께 설명한다.",messages=[{"role":"user","content":f"데이터 컨텍스트: {json.dumps(context, ensure_ascii=False, default=str)}\n\n질문: {payload.question}"}])
-        answer="".join(block.text for block in message.content if getattr(block,"type","")=="text")
+        message = Anthropic(api_key=settings.anthropic_api_key).messages.create(
+            model=settings.claude_model,
+            max_tokens=2000,
+            system=(
+                "당신은 LH-PREDICT RESILIENCE — SEOUL의 안전 분석 설명 보조자다. "
+                "제공된 구조화 JSON 사실만 사용하고 새로운 점수, 확률, 관측값, 연쇄 Node를 만들지 않는다. "
+                "회복력은 운영 의사결정용 복합지수이고 시설 취약도는 고장확률이 아님을 명시한다. "
+                "한국어 완결문 4~6개로 작성하고 핵심 취약요인, 근거 수치, 데이터 한계, 우선 점검 조치 두 가지를 포함한다. "
+                "마크다운 제목이나 표는 사용하지 말고 마지막 문장을 반드시 마침표로 끝낸다."
+            ),
+            messages=[{"role":"user","content":f"검증 데이터 컨텍스트:\n{json.dumps(context, ensure_ascii=False, default=str)}\n\n사용자 질문:\n{payload.question}"}],
+        )
+        answer = "".join(block.text for block in message.content if getattr(block, "type", "") == "text").strip()
+        stop_reason = getattr(message, "stop_reason", None)
     except Exception as exc:
         raise HTTPException(502, f"Claude 호출 실패: {type(exc).__name__}") from exc
     item=AIConversation(conversation_id=uuid.uuid4().hex,complex_id=payload.complex_id,question=payload.question,answer=answer,created_at=datetime.now(UTC));db.add(item);db.commit()
-    return {"conversation_id":item.conversation_id,"answer":answer,"created_at":item.created_at}
+    return {"conversation_id":item.conversation_id,"answer":answer,"created_at":item.created_at,"stop_reason":stop_reason}
 
 @router.get("/ai/conversations")
 def conversations(db: Session = Depends(get_db)):

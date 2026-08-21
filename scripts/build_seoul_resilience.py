@@ -22,6 +22,7 @@ if str(ROOT) not in sys.path:
 from backend.app.db.base import (
     Base,
     ComplexDataLink,
+    FloodSpatialFeature,
     HistoricalFloodFeature,
     ModelVersion,
     RainPumpProximityFeature,
@@ -99,37 +100,53 @@ def dem_samples(rows: list[dict]) -> dict[str, float]:
     return result
 
 
-def observation_summary() -> tuple[dict[str, dict], dict[str, dict]]:
+def observation_summary() -> tuple[dict[str, dict], dict[str, dict], dict[str, dict]]:
     rain: dict[str, dict] = {}
+    rain_by_station: dict[str, dict] = {}
     sewer: dict[str, dict] = {}
     rain_path = latest_parquet("seoul_rainfall")
     if rain_path:
         frame = pd.read_parquet(rain_path)
         frame["time"] = pd.to_datetime(frame["observed_at"], errors="coerce", utc=True)
         frame["value"] = pd.to_numeric(frame["rainfall_mm"], errors="coerce")
-        for district, group in frame.dropna(subset=["GU_NM", "time"]).groupby("GU_NM"):
+        valid_rain = frame.dropna(subset=["time", "station_id"])
+        valid_rain = valid_rain.assign(station_id=valid_rain["station_id"].astype(str))
+        for station_id, group in valid_rain.groupby("station_id"):
             latest = group["time"].max()
             current = group[group["time"] == latest]
-            station = str(current.iloc[0].get("station_name", ""))
-            station_rows = group[group["station_name"].astype(str).eq(station)].sort_values("time")
+            station = str(current.iloc[0].get("station_name", station_id))
+            station_rows = group.sort_values("time")
             totals = {}
+            coverage = {}
             for minutes in (10, 60, 180, 360, 720, 1440, 2880, 4320):
                 window = station_rows[
                     (station_rows["time"] > latest - pd.Timedelta(minutes=minutes)) & (station_rows["time"] <= latest)
                 ]
-                totals[minutes] = float(window["value"].sum()) if not window.empty else None
+                expected = max(1, minutes // 10)
+                actual = int(window["value"].notna().sum())
+                ratio = actual / expected
+                coverage[minutes] = {"expected": expected, "actual": actual, "coverage_ratio": round(ratio, 4)}
+                totals[minutes] = float(window["value"].sum()) if ratio >= 0.8 else None
             indexed = station_rows.set_index("time")["value"].sort_index()
             last_24h = indexed[indexed.index > latest - pd.Timedelta(hours=24)]
             max_1h = last_24h.rolling("60min").sum().max()
             max_3h = last_24h.rolling("180min").sum().max()
-            rain[str(district)] = {
-                "value": float(current["value"].max() or 0),
+            summary = {
+                "value": None if current["value"].dropna().empty else float(current["value"].max()),
                 "time": latest.to_pydatetime(),
+                "station_id": str(station_id),
                 "station": station,
                 "totals": totals,
+                "coverage": coverage,
                 "max_rain_1h_24h": None if pd.isna(max_1h) else float(max_1h),
                 "max_rain_3h_24h": None if pd.isna(max_3h) else float(max_3h),
             }
+            rain_by_station[str(station_id)] = summary
+            district = current.iloc[0].get("GU_NM")
+            if pd.notna(district):
+                previous = rain.get(str(district))
+                if previous is None or summary["time"] > previous["time"]:
+                    rain[str(district)] = summary
     sewer_path = latest_parquet("seoul_sewer_level")
     if sewer_path:
         frame = pd.read_parquet(sewer_path)
@@ -144,7 +161,7 @@ def observation_summary() -> tuple[dict[str, dict], dict[str, dict]]:
                 "sensor": str(current.iloc[0].get("sensor_id", "")),
                 "p95": float(group["value"].quantile(0.95) or 0),
             }
-    return rain, sewer
+    return rain, rain_by_station, sewer
 
 
 def add_assessment(
@@ -210,7 +227,10 @@ def main() -> None:
         coordinate_ok = coordinate_in_seoul_extent(lat, lon)
         status = "VALIDATED" if coordinate_ok else ("ADDRESS_ONLY" if coordinate_ok is None else "REVIEW_REQUIRED")
         eligible = coordinate_ok is not False
-        district_match = re.search(r"서울(?:특별시|시)\s+([^\s]+구)", str(row["address"]))
+        # LH source addresses use all three forms: 서울특별시, 서울시, and 서울.
+        # Treat the administrative suffix as optional so district-level rainfall
+        # and sewer observations are not dropped solely because of formatting.
+        district_match = re.search(r"서울(?:특별시|시)?\s+([^\s]+구)", str(row["address"]))
         district = district_match.group(1) if district_match else None
         match = pd.DataFrame()
         if not kapt_list.empty:
@@ -250,7 +270,7 @@ def main() -> None:
     elevations = {cid: row.elevation_m for cid, row in terrain_rows.items() if row.elevation_m is not None}
     if not terrain_rows:
         elevations = dem_samples(profiles)
-    rain_by_district, sewer_by_district = observation_summary()
+    rain_by_district, rain_by_station, sewer_by_district = observation_summary()
     rain_history = rainfall_reference()
     rain_1h_reference = None if rain_history is None else rain_history.get("references", {}).get("1h")
     weights = json.loads((ROOT / "config" / "resilience_weights.json").read_text(encoding="utf-8"))["weights"]
@@ -260,6 +280,10 @@ def main() -> None:
         for values in profiles:
             db.add(SeoulComplexProfile(**values))
         db.flush()
+        # Build against the freshly normalized profiles so station/pump/river
+        # linkage and confidence are from the same reproducible snapshot.
+        spatial_summary = build_flood_spatial_features(db)
+        flood_spatial_rows = {row.complex_id: row for row in db.query(FloodSpatialFeature).all()}
         for values in profiles:
             cid = values["complex_id"]
             link = links.get(cid)
@@ -387,7 +411,16 @@ def main() -> None:
             )
 
             district = values["district"]
-            rain = rain_by_district.get(district or "")
+            flood_spatial = flood_spatial_rows.get(cid)
+            rain = (
+                rain_by_station.get(str(flood_spatial.nearest_rain_station_id))
+                if flood_spatial and flood_spatial.nearest_rain_station_id
+                else None
+            )
+            rain_match_method = "station_id_exact" if rain else None
+            if rain is None:
+                rain = rain_by_district.get(district or "")
+                rain_match_method = "district_fallback" if rain else None
             sewer = sewer_by_district.get((district or "").removesuffix("구")) or sewer_by_district.get(district or "")
             rain_age = (NOW - rain["time"]).total_seconds() / 60 if rain else None
             sewer_age = (NOW - sewer["time"]).total_seconds() / 60 if sewer else None
@@ -402,7 +435,7 @@ def main() -> None:
             dynamic_quality = (
                 "STALE"
                 if parts and ((rain_age or 10**9) > 180 or (sewer_age or 10**9) > 180)
-                else ("PARTIAL" if len(parts) < 2 else "COMPLETE")
+                else ("PARTIAL" if len(parts) < 2 or rain_match_method == "district_fallback" else "COMPLETE")
             )
             totals = rain["totals"] if rain else {}
             dynamic_features = {
@@ -421,14 +454,20 @@ def main() -> None:
                 "rain_reference_years": None if rain_history is None else rain_history.get("source_years"),
                 "rain_reference_data_version": None if rain_history is None else rain_history.get("data_version"),
                 "rain_reference_method": None if rain_history is None else rain_history.get("method"),
-                "nearest_rain_station_id": rain["station"] if rain else None,
-                "rain_station_distance_m": None,
+                "nearest_rain_station_id": flood_spatial.nearest_rain_station_id if flood_spatial else None,
+                "nearest_rain_station_name": (
+                    (flood_spatial.source_metadata or {}).get("rain_station_match", {}).get("station_name")
+                    if flood_spatial else None
+                ),
+                "rain_station_distance_m": flood_spatial.rain_station_distance_m if flood_spatial else None,
+                "rain_station_match_method": rain_match_method,
+                "rain_window_coverage": rain.get("coverage") if rain else None,
                 "rain_data_age_minutes": rain_age,
                 "sewer_level_current": sewer["value"] if sewer else None,
                 "nearest_sewer_sensor_id": sewer["sensor"] if sewer else None,
                 "sewer_sensor_distance_m": None,
                 "sewer_data_age_minutes": sewer_age,
-                "distance_status": "BLOCKED_BY_DATA",
+                "distance_status": "AVAILABLE" if flood_spatial and flood_spatial.rain_station_distance_m is not None else "BLOCKED_BY_DATA",
             }
             add_assessment(
                 db,
@@ -436,7 +475,7 @@ def main() -> None:
                 "dynamic_climate_stress",
                 dynamic_score,
                 "rule_baseline",
-                "dynamic-climate-stress-v1",
+                "dynamic-hydrologic-stress-v2",
                 dynamic_features,
                 [
                     {
@@ -538,6 +577,18 @@ def main() -> None:
                 if terrain
                 else 0
             )
+            hydrology_statuses = flood_spatial.dataset_statuses if flood_spatial else {}
+
+            def availability_score(dataset_id: str, statuses=hydrology_statuses) -> float:
+                status = statuses.get(dataset_id)
+                return {
+                    "AVAILABLE": 100.0,
+                    "PARTIAL": 60.0,
+                    "PARTIAL_NO_GEOMETRY": 45.0,
+                    "PARTIAL_NO_LOCATION": 45.0,
+                    "REVIEW_REQUIRED": 35.0,
+                }.get(status, 0.0)
+
             components = {
                 "coordinate_validation": 100
                 if values["validation_status"] == "VALIDATED"
@@ -553,11 +604,11 @@ def main() -> None:
                 "sewer_availability": 100 if sewer else 0,
                 "sewer_freshness": 100 if sewer_age is not None and sewer_age <= 180 else 0,
                 "flood_trace_availability": 80 if history and history.missing_years else 100 if history else 0,
-                "flood_forecast_geometry_availability": 0,
-                "rain_station_location_availability": 0,
+                "flood_forecast_geometry_availability": availability_score("seoul_flood_forecast_geometry"),
+                "rain_station_location_availability": availability_score("seoul_rain_gauge_locations"),
                 "pump_station_geometry_availability": 100 if rain_pump else 0,
-                "pump_station_attribute_availability": 0,
-                "river_level_availability": 0,
+                "pump_station_attribute_availability": availability_score("seoul_pump_station_attributes"),
+                "river_level_availability": availability_score("seoul_river_levels"),
                 "facility_linkage": 100 if elevator_count else 0,
                 "kapt_linkage": 100 if values["kapt_code"] else 0,
             }
@@ -688,8 +739,6 @@ def main() -> None:
                 )
             )
         db.commit()
-    with SessionLocal() as db:
-        spatial_summary = build_flood_spatial_features(db)
     print(
         {
             "seoul_profiles": len(profiles),

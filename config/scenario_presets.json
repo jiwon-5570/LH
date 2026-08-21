@@ -1,0 +1,11 @@
+{
+  "version": "scenario-presets-v1",
+  "notice": "사용자 편의를 위한 가상 Stress Test 조건이며 실제 기상예보가 아닙니다.",
+  "presets": {
+    "current": {"label": "현재 상태", "rain_change_pct": 0, "sewer_change_pct": 0, "river_change_pct": 0},
+    "heavy_rain": {"label": "집중호우", "rain_change_pct": 30, "sewer_change_pct": 15, "river_change_pct": 10},
+    "extreme_rain": {"label": "극한호우", "rain_change_pct": 80, "sewer_change_pct": 35, "river_change_pct": 25},
+    "drainage_load": {"label": "배수부담 증가", "rain_change_pct": 10, "sewer_change_pct": 50, "river_change_pct": 10},
+    "compound": {"label": "복합 위험", "rain_change_pct": 50, "sewer_change_pct": 30, "river_change_pct": 30}
+  }
+}

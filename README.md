@@ -1,5 +1,21 @@
 # LH-PREDICT RESILIENCE — SEOUL
 
+## React 운영 UI
+
+운영 화면은 Streamlit에서 **React + TypeScript + Vite**로 전환되었습니다. FastAPI, SQLite/PostgreSQL, GIS 처리 및 AI 파이프라인은 기존 Python 구현을 그대로 사용합니다.
+
+```powershell
+# FastAPI와 React 개발 서버를 한 번에 실행하고 브라우저를 엽니다.
+.\run.cmd
+```
+
+- React 대시보드: `http://127.0.0.1:8501`
+- FastAPI 문서: `http://127.0.0.1:8000/docs`
+- React 소스: `web/src`
+- 프로덕션 빌드: `cd web; npm.cmd run build`
+
+상세 근거 보기는 브라우저 상태로 즉시 열리며, Streamlit처럼 전체 Python 스크립트를 다시 실행하지 않습니다. NAVER 지도에는 브라우저 공개용 Client ID만 전달되고 Client Secret 및 기타 API 키는 백엔드 `.env`에만 유지됩니다.
+
 > 서울 소재 LH 공동주택의 기후·시설 취약성과 재난회복력을 실제 공공데이터로 설명하는 의사결정 지원 플랫폼
 
 전국 3,183개 LH 단지는 Master로 보존하고, 주소 정규화와 좌표 검증을 통과한 서울 단지만 분석합니다. 현재 실제 서울 Master는 125개이며 좌표·DEM 검증 완료 72개, 주소 확인·좌표 미확보 53개입니다. 숫자는 코드에 고정하지 않고 Profile 빌드 결과로 계산됩니다.
@@ -15,7 +31,7 @@
 - 고위험 예측과 경보 확인 처리
 - 수집 데이터 품질 및 출처·기준시각 추적
 - 검증 완료 모델만 운영에 사용하는 배포 게이트
-- NAVER Maps 기반 Streamlit 운영 대시보드
+- NAVER Maps 기반 React 운영 대시보드
 - 실제 단지 CSV 검증·적재 및 부적합 행 격리
 
 ## 2. 현재 구현 상태
@@ -24,14 +40,14 @@
 |---|---|---|
 | FastAPI | 구현 | health, 단지, 예측, 경보, 데이터 품질, 모델 API |
 | PostgreSQL/PostGIS | 기반 구현 | Docker Compose 제공. 개발 기본값은 SQLite |
-| Streamlit | 구현 | 무데이터·API 장애 상태를 포함한 운영 화면 |
+| React + TypeScript + Vite | 구현 | 무데이터·API 장애 상태를 포함한 운영 화면 |
 | NAVER Maps | 구현 | 검증 좌표만 전달하며 키 미설정 시 표 형태 fallback |
 | 단지 CSV 수집 | 구현 | 필수 컬럼, 좌표 범위, 주소, ID 중복 검증 |
 | 모델 학습 골격 | 구현 | 시간순 분할, ROC-AUC, PR-AUC, Brier Score 저장 |
 | 모델 운영 승인 | 구현 | `validated=true`가 아닌 산출물 사용 차단 |
 | 공공 API별 수집기 | 미구현 | API 키, 제공기관 명세 및 이용 승인이 필요 |
 | AI 안전 관제 | 비활성 | 실제 조회 도구와 Claude 연결 미구현, API는 503 반환 |
-| AI 보고서/PDF | 비활성 | 실제 예측 스냅샷과 보고서 파이프라인 미구현 |
+| AI 보고서/PDF | 구현 | 서울·자치구·단지별 실제 DB 집계, 스냅샷, HTML/PDF, Claude 실패 fallback |
 | 전체 DB 28개 테이블/Alembic | 미구현 | 현재 단지·예측·경보 핵심 모델만 구현 |
 | 실제 모델 성능 | 없음 | 실제 학습 데이터와 외부검증 결과가 없음 |
 
@@ -59,6 +75,18 @@ lowland_index_R = clamp(-relative_elevation_R / (2 × R 반경 표고 표준편�
 Resilience v3는 공식 침수흔적도와 단지 좌표의 최근접 거리, 점 교차 여부, 100/300/500m 겹침 면적비와 연도 이력을 Historical Exposure 근거로 사용합니다. 이 값은 침수확률이 아닌 운영 근접지수입니다. 누락 구성요소는 임의 50점으로 대체하지 않고 가용 구성요소 가중치를 재정규화합니다. Climate Stress Scenario는 Feature 변화만 저장하고 검증 Flood ML 전에는 `scenario_score=null`, `NOT_READY`입니다.
 
 현재 구현 범위를 넘어선 기능을 완료한 것으로 간주하면 안 됩니다.
+
+### 다중 범위 AI 보고서 (2026-08-21)
+
+- 범위: 서울 전체, 자치구, 개별 단지
+- 유형: 종합 회복력, 기후재난, 시설 취약성, 복합재난 연쇄영향
+- API: `POST /api/v1/seoul/reports/generate`, `GET /api/v1/seoul/reports/{report_id}`
+- 다운로드: 보고서별 HTML과 한글 PDF
+- 재현성: 생성 당시 전체 payload와 기준 시각을 `resilience_report_snapshots`에 보존
+- 결측 처리: 평균에서 제외하고 `insufficient`로 별도 집계하며 값을 임의 보간하지 않음
+- AI 역할: 검증된 구조화 결과만 자연어로 설명하며, 키 미설정·호출 실패 시 동일 근거의 규칙 기반 해설 사용
+
+보고서 화면은 `AI 보고서` 메뉴에서 보고서 유형과 분석 범위를 선택해 생성합니다. PDF 생성에는 `reportlab`이 필요하므로 의존성 변경 후 `pip install -r requirements.txt`를 다시 실행합니다.
 
 ## 3. 데이터 원칙
 
@@ -108,7 +136,7 @@ API 키만으로 접근할 수 없는 기관 내부 유지보수·고장 이력�
 ## 6. 시스템 구성
 
 ```text
-Streamlit/NAVER Maps
+React/NAVER Maps
         │ HTTP
         ▼
 FastAPI ── SQLAlchemy ── PostgreSQL/PostGIS
@@ -131,7 +159,7 @@ backend/app/
   schemas/      Pydantic 응답 모델
   services/     모델 운영 준비도 검사
 frontend/
-  app.py        Streamlit 포털
+  app.py        레거시 Streamlit 포털(기본 실행에서 제외)
   api_client.py Backend API 클라이언트
   components/   NAVER 지도 등 UI 구성요소
 data/           raw/staging/processed/quarantine
@@ -153,7 +181,7 @@ tests/          단위·통합·E2E 테스트 영역
 
 ### 한 번에 실행하기(Windows PowerShell)
 
-프로젝트 폴더에서 다음 명령 하나만 실행하면 가상환경과 의존성을 준비하고 FastAPI와 Streamlit을 함께 시작합니다.
+프로젝트 폴더에서 다음 명령 하나만 실행하면 가상환경과 의존성을 준비하고 FastAPI와 React를 함께 시작합니다.
 
 ```powershell
 .\run.cmd
@@ -195,7 +223,7 @@ streamlit run app.py --server.headless true
 |---|---|---|
 | `APP_ENV` | 실행 환경 | 항상 |
 | `DATABASE_URL` | SQLAlchemy DB 연결 | 항상 |
-| `FRONTEND_API_URL` | Streamlit의 Backend 주소 | 항상 |
+| `FRONTEND_API_URL` | 레거시 Streamlit의 Backend 주소 | 레거시 UI 사용 시 |
 | `NAVER_MAP_CLIENT_ID` | NAVER Maps JavaScript API v3 | 지도 활성화 |
 | `NAVER_MAP_CLIENT_SECRET` | NAVER Maps 서버 API 인증키(Client Secret) | 지오코딩 등 서버 API 사용 시 |
 | `DATA_GO_KR_SERVICE_KEY` | 공공데이터포털 API | 해당 수집기 사용 |
@@ -220,7 +248,18 @@ MOIS_FLOOD_TRACE_API_URL=https://www.safetydata.go.kr/V2/api/DSSP-IF-00117
 .\.venv\Scripts\python.exe -m scripts.ingest_mois_flood_trace_api
 ```
 
-해당 API의 공식 출력항목은 일련번호(`SN`)와 침수수심(`FLDN_DOWA`)이며 공간 도형은 포함하지 않습니다. 따라서 API 결과는 `data/processed/mois_flood_trace_api`에 속성 데이터로 보존하고, 침수영역 라벨 생성에는 별도 SHP/GPKG/GeoJSON 공간파일을 사용합니다.
+실제 승인 API 응답에는 일련번호(`SN`), 침수수심(`FLDN_DOWA`)과 Web Mercator WKT 도형(`GEOM`)이 함께 제공됩니다. 수집 결과는 `data/processed/mois_flood_trace_api`에 원본 속성 Parquet으로 보존하고, 서울 시도코드와 공간 범위를 모두 검증한 도형만 EPSG:5179로 변환하여 `data/processed/seoul_flood_trace/seoul_flood_trace.parquet`에 기존 연도별 공간파일과 통합합니다. 중복은 연도+정확한 geometry hash로 제거하며 행 순서로 결합하지 않습니다.
+
+```powershell
+# API 전체 수집 + 서울 공간자료 통합
+.\.venv\Scripts\python.exe -m scripts.ingest_mois_flood_trace_api
+
+# 이미 수집한 최신 API 캐시로 통합만 재실행
+.\.venv\Scripts\python.exe -m scripts.ingest_mois_flood_trace_api --skip-collect
+
+# 파일자료 → MOIS API → 단지별 100/300/500m 근거 Feature 전체 재생성
+.\.venv\Scripts\python.exe -m scripts.build_seoul_hydrology
+```
 | `CLAUDE_MODEL` | 사용할 Claude 모델명(현재 `claude-sonnet-5`) | AI 기능 활성화 |
 | `BASIC_AUTH_USERNAME/PASSWORD` | 인증 연동용 | 운영 배포 |
 
@@ -378,7 +417,7 @@ docker compose ps
 
 - PostgreSQL/PostGIS: 내부 `5432`
 - FastAPI: `8000`
-- Streamlit: `8501`
+- React(Vite): `8501`
 
 운영 배포 전 DB 기본 비밀번호를 반드시 변경하고 TLS와 reverse proxy 인증을 적용합니다.
 
@@ -416,10 +455,11 @@ pytest
 
 운영 Dataset ID는 `seoul_flood_trace`, `seoul_flood_forecast_geometry`, `seoul_rain_gauge_locations`, `seoul_rain_pump_stations`, `seoul_pump_station_attributes`, `seoul_river_levels`, `seoul_rainfall_historical`로 고정했습니다.
 
-현재 실제 원본과 연결된 것은 침수흔적도(2020, 2022~2025), 빗물펌프장 공간정보, 과거 강우(2021~2024)입니다. 나머지 예상침수도, 강우계 위치, 펌프 속성, 하천수위는 저장소에서 실제 원본/API 캐시가 발견되지 않아 `BLOCKED_BY_DATA`입니다. 없는 값은 0이나 임의 좌표로 대체하지 않습니다.
+2026-08-21 로컬 검증 기준으로 침수흔적도 30,138건, 강우량계 29개, 빗물펌프장 118개, 배수펌프장 속성 96건, 하천수위 22건, 과거 강우 9,349,919건이 processed 계층과 단지 Feature에 연결됩니다. 풍수해 침수예상도 API 속성은 2,094건이나 Geometry가 없어 `PARTIAL_NO_GEOMETRY`, 하천수위는 관측소 좌표가 없어 `PARTIAL_NO_LOCATION`입니다. 없는 값은 0이나 임의 좌표·임의 공간관계로 대체하지 않습니다.
 
 ```powershell
 .\.venv\Scripts\python.exe scripts\build_seoul_hydrology.py
+.\.venv\Scripts\python.exe -m scripts.audit_seoul_hydrology
 .\.venv\Scripts\python.exe scripts\build_seoul_resilience.py
 ```
 
@@ -427,26 +467,55 @@ pytest
 
 ### 서울 수문 API 키 입력 및 수집
 
-`.env`에서 아래 값을 채웁니다. 네 데이터셋은 서로 다른 인증키를 사용할 수 있습니다.
+`.env`에서 아래 값을 채웁니다. 세 OpenAPI 데이터셋은 서로 다른 인증키를 사용할 수 있으며, 강우량계 위치정보는 공식 FILE 전용 데이터셋입니다.
 
 ```dotenv
 SEOUL_FLOOD_FORECAST_MAP_API_KEY=
 SEOUL_FLOOD_FORECAST_MAP_API_URL=http://openapi.seoul.go.kr:8088/{key}/json/floodingDs/{start}/{end}/
 
-SEOUL_RAIN_GAUGE_LOCATION_API_KEY=
-SEOUL_RAIN_GAUGE_LOCATION_API_URL=
+SEOUL_RAIN_GAUGE_LOCATION_FILE_URL=https://data.seoul.go.kr/dataList/OA-22824/F/1/datasetView.do
 
 SEOUL_PUMP_STATION_ATTRIBUTE_API_KEY=
-SEOUL_PUMP_STATION_ATTRIBUTE_API_URL=
+SEOUL_PUMP_STATION_ATTRIBUTE_API_URL=http://openapi.seoul.go.kr:8088/{key}/json/Drps/{start}/{end}/
 
 SEOUL_RIVER_LEVEL_API_KEY=
-SEOUL_RIVER_LEVEL_API_URL=
+SEOUL_RIVER_LEVEL_API_URL=http://openapi.seoul.go.kr:8088/{key}/json/ListRiverStageService/{start}/{end}/
+
+HYDROLOGY_COLLECTION_MIN_INTERVAL_MINUTES=60
 ```
 
-URL은 서울 열린데이터광장 상세 페이지의 실제 서비스명을 사용한 `{key}/{start}/{end}` 템플릿으로 입력합니다. 키 값은 따옴표 없이 입력합니다. 이후 다음 명령 하나로 설정된 API만 수집하고 단지 Feature를 갱신합니다.
+API URL은 서울 열린데이터광장 상세 페이지의 실제 서비스명을 사용한 `{key}/{start}/{end}` 템플릿입니다. 키 값만 따옴표 없이 입력합니다. 강우량계 위치 파일은 내려받은 뒤 `seoul_rain_gauge_locations` Dataset ID로 적재합니다. 이후 다음 명령 하나로 설정된 API만 수집하고 단지 Feature를 갱신합니다.
 
 ```powershell
 .\.venv\Scripts\python.exe -m scripts.collect_seoul_hydrology_apis
 ```
 
-설정 및 적재 상태는 `GET /api/v1/seoul/hydrology-sources`에서 키 값을 노출하지 않고 확인할 수 있습니다. `floodingDs`는 실제 검증 결과 2,094개의 단계 속성을 반환하지만 Geometry는 반환하지 않으므로 `PARTIAL_NO_GEOMETRY`로 관리하며, 공간파일과 `space_id`로 결합되기 전에는 침수예상 면적비를 계산하지 않습니다.
+최근 성공 파일이 설정 간격 이내면 재수집을 건너뛰어 디스크 증가와 API 호출을 줄입니다. 즉시 강제 갱신하려면 명령 끝에 `--force`를 붙입니다.
+
+설정 및 적재 상태는 `GET /api/v1/seoul/hydrology-sources`에서 키 값을 노출하지 않고 확인할 수 있습니다. 이 응답은 최신 canonical snapshot의 레코드 수, CRS, 최신 관측시각, 데이터 버전, 품질상태와 차단 사유를 제공합니다. 단지별 통합 결과는 `GET /api/v1/seoul/complexes/{complex_id}/hydrology`에서 조회합니다. `floodingDs`는 실제 검증 결과 2,094개의 단계 속성을 반환하지만 Geometry는 반환하지 않으므로 `PARTIAL_NO_GEOMETRY`로 관리하며, 공간파일과 `space_id`로 결합되기 전에는 침수예상 면적비를 계산하지 않습니다.
+
+## 실시간 모드와 시나리오 모드
+
+- **실시간 모드**는 DB에 적재된 최신 공공데이터와 기존 `risk_assessments`만 표시합니다.
+- **시나리오 모드**는 실제 단지·DEM·침수이력·배수시설·시설정보를 고정하고 사용자가 입력한 강우·하수관·하천 수위 변화율만 적용하는 Stress Test입니다.
+- 입력은 `scenario_input=true`, `source=USER_SCENARIO`로 구분되어 `stress_test_runs`에 별도 저장되며 실시간 평가를 덮어쓰지 않습니다.
+- 결과는 `scenario-baseline-v1` 복합 취약도 지수이며 실제 미래 재난 발생확률이나 기상예보가 아닙니다.
+
+```http
+POST /api/v1/seoul/scenarios/run
+Content-Type: application/json
+
+{"rain_change_pct":50,"sewer_change_pct":20,"river_change_pct":10,"apply_to_all_complexes":true}
+```
+# Cascading Risk Engine v1
+
+LH-PREDICT의 Cascading Risk는 실제 재난 발생확률이 아니라 현재 확보된 공공데이터 간 조건관계를 이용한 **증거 기반 운영 영향경로 분석**이다. 강우, 하수·하천 수위, DEM 저지대, 공식 침수흔적, 침수예상도, 배수펌프장 접근성, 승강기 연계정보와 기존 검증 평가 스냅샷만 사용한다.
+
+- 지원 환경 Node: `HEAVY_RAIN`, `SEWER_STRESS`, `RIVER_STRESS`, `LOWLAND_EXPOSURE`, `HISTORICAL_FLOOD_EXPOSURE`, `EXPECTED_FLOOD_EXPOSURE`, `DRAINAGE_LIMITATION`
+- 복합·영향 Node: `COMPOUND_HYDROLOGIC_STRESS`, `FLOOD_EXPOSURE`, `ELEVATOR_SERVICE_IMPACT`, `UNDERGROUND_EQUIPMENT_REVIEW`, `ACCESS_FUNCTION_REVIEW`, `FUNCTIONAL_DISRUPTION`, `RESILIENCE_DEGRADATION`
+- 단계: Level 0(미탐지)부터 Level 5(복수 기능영향 및 회복력 저하 점검 경로)까지이며 UI에서는 `운영용 연쇄영향 단계`로만 표시한다.
+- Evidence: 활성 Node마다 데이터셋, Feature명, 실제 값과 부족한 근거를 함께 반환한다.
+- 시나리오: `StressTestRun`의 기존값과 사용자 수정값을 각각 재평가하며 미래 예측으로 표현하지 않는다.
+- 한계: 전기실·기계실·발전기실 등 내부설비 위치가 없으므로 고장·누전·정전·승강기 정지를 생성하지 않는다. 위치·방수상태 확인이 필요한 경우 `REVIEW_REQUIRED`, 기준정보가 없으면 `INSUFFICIENT`로 표시한다.
+
+API는 `GET /api/v1/seoul/complexes/{complex_id}/cascade`, 재분석은 `POST .../cascade/analyze`, 시나리오 비교는 `GET /api/v1/seoul/stress-tests/{run_id}/cascade`를 사용한다. Re:Safe Score와 Cascade Level은 검증 전까지 별도 지표로 유지한다.

@@ -1,8 +1,14 @@
 from contextlib import asynccontextmanager
+from pathlib import Path
 
+from dotenv import load_dotenv
 from fastapi import FastAPI
 from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
+
+# Ensure services that read optional dataset URLs directly from os.environ see
+# the project configuration regardless of the process launch directory.
+load_dotenv(Path(__file__).resolve().parents[2] / ".env", override=False)
 
 from backend.app.api.v1.router import router
 from backend.app.db.base import Base

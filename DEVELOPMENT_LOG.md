@@ -1,5 +1,14 @@
 # 개발 기록
 
+## 2026-08-21 — 서울 수문 7종 완전연결 감사
+
+- processed 산출물을 Parquet row count, Geometry, CRS, 최신 관측시각, 버전으로 검사하도록 개선
+- 단지 95개를 실제 최근접 강우량계와 metric CRS로 연결하고 좌표 미확보 30개에는 공간관계를 생성하지 않음
+- 현재 강우는 station ID exact match 우선, 자치구 fallback은 `PARTIAL`로 명시
+- 누적 강우는 관측 커버리지 80% 미만이면 `None/INSUFFICIENT`; 6시간 과거 분포 추가
+- 펌프 용량은 검증된 동일 단위가 없으면 합산하지 않으며 하천 좌표 부재는 `PARTIAL_NO_LOCATION`으로 분리
+- 단지 통합 API `/api/v1/seoul/complexes/{complex_id}/hydrology`와 재현 가능한 QA 명령 추가
+
 ## 2026-08-12 — CI/Ground Truth/DEM 강화
 
 - CI 문제 원인: GitHub Actions Ubuntu의 `pytest` 실행 파일에서 저장소 루트가 import path에 없어 `backend` 모듈 수집 5건 실패
@@ -65,3 +74,28 @@
 - 실제 원본이 없는 4종은 `BLOCKED_BY_DATA`로 유지했다.
 - 상세 FastAPI 6개와 Streamlit 통합 수문 Feature 탭을 연결했다.
 - Flood ML은 필수 검증 조건 미충족으로 학습하지 않았다.
+
+## 2026-08-19 — Realtime and scenario dashboard modes
+
+- 서울 전체 분석 가능 단지에 동일 사용자 시나리오를 적용하는 `scenario_service`를 추가했다.
+- 강우 -50~+200%, 하수·하천 -50~+100% 범위를 검증한다.
+- 실시간 Feature Snapshot을 복사하고 동적 Feature만 변경한 뒤 기후 취약성과 회복력을 재계산한다.
+- 결과를 `USER_SCENARIO`, `composite_scenario`, `scenario-baseline-v1`으로 표시하고 기존 `risk_assessments`는 변경하지 않는다.
+- React 대시보드에 입력 패널, 전후 KPI, 시나리오 지도, 영향 TOP 5를 연결했다.
+# 2026-08-21 — Cascading Risk Engine v1
+
+- 신규 외부 데이터 없이 Terrain, FloodSpatial, HistoricalFlood, RainPump, RiskAssessment, ComplexDataLink, StressTestRun을 결합하는 `evidence_graph/cascade-v1`을 구현했다.
+- Node는 `ACTIVE/WATCH/INACTIVE/INSUFFICIENT/REVIEW_REQUIRED`만 사용하며 확률을 만들지 않는다.
+- `CascadeAnalysisRun`, `CascadePath`에 입력·결과·경로·근거를 저장한다.
+- 현재 운영 DB 125개 단지 분석 결과: Level 0 44개, Level 1 81개, Level 2~5 0개. 모든 단지에 하나 이상의 부족 근거가 있으며 이는 현재 동적 수문 기준정보 한계를 정직하게 반영한 결과다.
+- 단지 상세에 연쇄경로, Node 근거, 부족 근거, 운영 점검 우선순위를 추가했다.
+# 2026-08-21 — 다중 범위 AI 보고서
+
+- `resilience_report_snapshots` 테이블로 생성 당시 payload, 범위, 버전, 기준 시각, PDF 경로를 보존했다.
+- 서울 전체·자치구·개별 단지 보고서 서비스와 HTML/PDF 렌더러를 추가했다.
+- Claude는 제공된 JSON 근거만 설명하도록 제한했으며 모든 공급자 오류에서 규칙 기반 설명으로 복구한다.
+- React 화면에 보고서 유형/범위/기준일 선택, KPI, AI 해설, 발견사항, 권고, 순위, 출처, 한계를 연결했다.
+- 테스트 결과: Ruff 통과, pytest 53개 통과, Vite 프로덕션 빌드 통과.
+- 실제 DB 검증: 서울 125개(평균 81.84), 강남구 21개(평균 80.2), 강남4BL 1개(85.8) 보고서와 HTML/PDF 다운로드 확인.
+- 보고서 화면을 아이콘 KPI, Re:Safe 도넛 분포, 분석 범위 NAVER 지도, 근거 발견 카드, 우선 권고, TOP 10, 방법론 표를 포함하는 문서형 레이아웃으로 확장했다.
+- AI 해설은 종합 판단·핵심 근거·비교 해석·우선 조치·해석상 주의 구조로 확장하고, Claude 실패 시에도 동일 구조의 상세 규칙 기반 해설을 제공한다.

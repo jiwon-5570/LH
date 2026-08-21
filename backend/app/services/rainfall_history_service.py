@@ -25,6 +25,42 @@ def _station_id(name: str) -> str:
     return "derived-" + hashlib.sha1(name.strip().encode("utf-8")).hexdigest()[:12]
 
 
+def normalize_station_name(value: object) -> str:
+    """Deterministic exact-match key; never performs unsafe fuzzy matching."""
+    text = str(value or "").strip().lower()
+    text = re.sub(r"\([^)]*\)", "", text)
+    text = re.sub(r"(?:서울특별시|서울시)", "", text)
+    return re.sub(r"[^0-9a-z가-힣]", "", text)
+
+
+def rainfall_accumulation(
+    frame: pd.DataFrame,
+    end_at: pd.Timestamp,
+    minutes: int,
+    minimum_coverage: float = 0.8,
+) -> dict:
+    """Return a coverage-aware accumulation; missing observations are not zero rain."""
+    expected = max(1, minutes // 10)
+    end = pd.Timestamp(end_at)
+    times = pd.to_datetime(frame["observed_at"], errors="coerce", utc=True)
+    if end.tzinfo is None:
+        end = end.tz_localize("UTC")
+    else:
+        end = end.tz_convert("UTC")
+    values = pd.to_numeric(frame["rainfall_mm"], errors="coerce")
+    mask = (times > end - pd.Timedelta(minutes=minutes)) & (times <= end)
+    actual = int(values.loc[mask].notna().sum())
+    coverage = actual / expected
+    return {
+        "minutes": minutes,
+        "expected_observation_count": expected,
+        "actual_observation_count": actual,
+        "coverage_ratio": round(coverage, 6),
+        "quality_status": "COMPLETE" if coverage >= 1 else "PARTIAL" if coverage >= minimum_coverage else "INSUFFICIENT",
+        "rainfall_mm": round(float(values.loc[mask].sum()), 3) if coverage >= minimum_coverage else None,
+    }
+
+
 def _sample_positive(values: pd.Series, limit: int = 5000) -> list[float]:
     positive = values[(values > 0) & values.notna()].to_numpy(dtype=float)
     if len(positive) <= limit:
@@ -68,7 +104,7 @@ def ingest_rainfall_history(source: Path, root: Path) -> dict:
         shutil.copy2(source, raw_path)
 
     summaries: list[dict] = []
-    distributions: dict[str, list[float]] = {"10m":[], "1h":[], "3h":[], "24h":[]}
+    distributions: dict[str, list[float]] = {"10m":[], "1h":[], "3h":[], "6h":[], "24h":[]}
     total_input = total_valid = total_invalid = total_duplicates = 0
     with zipfile.ZipFile(raw_path, metadata_encoding="cp949") as archive:
         members = [member for member in archive.infolist() if member.filename.lower().endswith(".csv")]
@@ -115,10 +151,12 @@ def ingest_rainfall_history(source: Path, root: Path) -> dict:
 
             roll_1h = _rolling_sum(valid, 60, 6)
             roll_3h = _rolling_sum(valid, 180, 18)
+            roll_6h = _rolling_sum(valid, 360, 36)
             roll_24h = _rolling_sum(valid, 1440, 144)
             distributions["10m"].extend(_sample_positive(valid["rainfall_mm"]))
             distributions["1h"].extend(_sample_positive(roll_1h))
             distributions["3h"].extend(_sample_positive(roll_3h))
+            distributions["6h"].extend(_sample_positive(roll_6h))
             distributions["24h"].extend(_sample_positive(roll_24h))
             expected = 52704 if pd.Timestamp(source_year, 12, 31).is_leap_year else 52560
             completeness = min(1.0, len(valid) / expected)
@@ -146,8 +184,11 @@ def ingest_rainfall_history(source: Path, root: Path) -> dict:
     references: dict[str, dict] = {}
     for window, values in distributions.items():
         array = np.asarray(values, dtype=float)
-        exact_max_column = {"10m":"max_10m_mm", "1h":"max_1h_mm", "3h":"max_3h_mm", "24h":"max_24h_mm"}[window]
-        exact_max = pd.to_numeric(summary[exact_max_column], errors="coerce").max()
+        exact_max_column = {"10m":"max_10m_mm", "1h":"max_1h_mm", "3h":"max_3h_mm", "24h":"max_24h_mm"}.get(window)
+        exact_max = (
+            pd.to_numeric(summary[exact_max_column], errors="coerce").max()
+            if exact_max_column else (max(values) if values else float("nan"))
+        )
         references[window] = {
             "positive_sample_count":len(array),
             "p50":None if not len(array) else round(float(np.quantile(array, 0.5)), 3),
