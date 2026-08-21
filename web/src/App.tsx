@@ -11,7 +11,7 @@ import { DetailPanel } from "./DetailPanel";
 const menus = [
   ["대시보드", LayoutDashboard], ["지도 보기", Map], ["AI 재난 위험 피드", TriangleAlert],
   ["단지 회복력 분석", Building2], ["기후재난 분석", CloudRain], ["시설 취약도", Wrench],
-  ["AI Chat", BrainCircuit], ["AI 회복력 보고서", FileText], ["데이터 관리", Database], ["시스템 설정", Settings]
+  ["AI Chat", BrainCircuit], ["AI 보고서", FileText], ["데이터 관리", Database], ["시스템 설정", Settings]
 ] as const;
 
 export default function App() {
@@ -64,7 +64,7 @@ export default function App() {
         {page === "기후재난 분석" && <ComplexAnalysis rows={filtered} title="기후재난 분석" onSelect={setSelected}/>}
         {page === "시설 취약도" && <ComplexAnalysis rows={filtered} title="시설 취약도" onSelect={setSelected}/>}
         {page === "AI Chat" && <AiChat complexes={complexes}/>}
-        {page === "AI 회복력 보고서" && <Reports complexes={complexes}/>}
+        {page === "AI 보고서" && <Reports complexes={complexes}/>}
         {page === "데이터 관리" && <DataManagement quality={quality} hydrology={hydrology}/>}
         {page === "시스템 설정" && <SystemSettings models={models}/>}
         {selected && <DetailPanel complex={selected} onClose={() => setSelected(null)}/>}
@@ -183,7 +183,7 @@ function Reports({complexes}:{complexes:Complex[]}) {
     finally{setBusy(false);}
   };
   const summary=created?.summary;
-  return <Page title="AI 회복력 보고서" subtitle="서울·자치구·단지 단위의 운영 DB 근거를 스냅샷으로 저장하고 HTML/PDF 보고서를 생성합니다.">
+  return <Page title="AI 보고서" subtitle="서울·자치구·단지 단위의 운영 DB 근거를 스냅샷으로 저장하고 HTML/PDF 보고서를 생성합니다.">
     <section className="panel report-builder">
       <div className="report-controls">
         <label>보고서 유형<select value={reportType} onChange={e=>setReportType(e.target.value)}><option value="resilience">종합 회복력</option><option value="climate">기후재난</option><option value="facility">시설 취약성</option><option value="cascade">복합재난 연쇄영향</option></select></label>

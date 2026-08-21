@@ -76,7 +76,7 @@ NAV_ITEMS = {
     "예측 분석": ":material/rainy:  기후재난 분석",
     "설비 관리": ":material/build:  시설 취약도",
     "AI Chat": ":material/psychology:  AI Chat",
-    "AI 보고서": ":material/description:  AI 회복력 보고서",
+    "AI 보고서": ":material/description:  AI 보고서",
     "데이터 관리": ":material/database:  데이터 관리",
     "시스템 설정": ":material/settings:  시스템 설정",
 }
