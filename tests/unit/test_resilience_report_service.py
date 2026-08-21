@@ -5,7 +5,11 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 
 from backend.app.db.base import Base, Complex, RiskAssessment, SeoulComplexProfile
-from backend.app.services.resilience_report_service import build_report_payload, generate_report
+from backend.app.services.resilience_report_service import (
+    _recommendation_reason,
+    build_report_payload,
+    generate_report,
+)
 
 
 def _database() -> Session:
@@ -132,3 +136,23 @@ def test_generate_report_persists_snapshot_and_two_files(tmp_path, monkeypatch):
     assert report["html_download_url"].endswith("/download/html")
     assert report["pdf_download_url"].endswith("/download/pdf")
     db.close()
+
+
+def test_recommendation_reason_uses_verified_drainage_and_rain_values():
+    detail = {
+        "assessments": {
+            "drainage_infrastructure_context": {
+                "features": {
+                    "nearest_pump_distance_m": 2161.29,
+                    "pump_count_1km": 0,
+                    "capacity_status": "NOT_PROVIDED",
+                }
+            },
+            "dynamic_climate_stress": {"features": {"rain_reference": {"p95": 11.5}}},
+        }
+    }
+    reason = _recommendation_reason("배수시설 상태 확인", {"nodes": []}, detail)
+    assert "2,161m" in reason
+    assert "1km 이내 확인된 펌프장은 0개" in reason
+    assert "11.5mm" in reason
+    assert "침수 발생" not in reason

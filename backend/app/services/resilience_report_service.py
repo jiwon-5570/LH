@@ -73,6 +73,55 @@ def _factor_rows(assessment):
     ][:5]
 
 
+def _recommendation_reason(text: str, cascade: dict, detail: dict) -> str:
+    """Turn verified features into a plain-language selection reason without inventing capacity or risk."""
+    assessments = detail.get("assessments") or {}
+    drainage = (assessments.get("drainage_infrastructure_context") or {}).get("features") or {}
+    climate = (assessments.get("dynamic_climate_stress") or {}).get("features") or {}
+    facility = (assessments.get("facility_vulnerability") or {}).get("features") or {}
+    nodes = {node.get("node_id"): node for node in cascade.get("nodes", [])}
+    missing = [item for node in nodes.values() for item in node.get("missing_evidence", [])]
+
+    if "배수" in text:
+        distance = drainage.get("nearest_pump_distance_m")
+        pump_count = drainage.get("pump_count_1km")
+        capacity = drainage.get("capacity_status")
+        parts = []
+        if distance is not None:
+            parts.append(f"최근접 빗물펌프장이 약 {distance:,.0f}m 떨어져 있습니다")
+        if pump_count is not None:
+            parts.append(f"1km 이내 확인된 펌프장은 {pump_count}개입니다")
+        if capacity in {None, "NOT_PROVIDED"}:
+            parts.append("펌프 용량·운영 속성이 확보되지 않았습니다")
+        rain_reference = climate.get("rain_reference") or {}
+        p95 = rain_reference.get("p95")
+        if p95 is not None:
+            parts.append(
+                f"1시간 강우가 과거 관측 상위 5% 기준인 {p95:g}mm 수준에 접근할 때 배수 상태 확인이 필요합니다"
+            )
+        return ". ".join(parts) + ("." if parts else "배수 관련 활성 분석 근거가 있어 시설 상태 확인이 필요합니다.")
+
+    if "승강기" in text:
+        count = facility.get("elevator_count")
+        score = (assessments.get("facility_vulnerability") or {}).get("score")
+        if count is not None:
+            return f"승강기 {count}대가 연결되어 있고 시설 취약성 지수는 {score if score is not None else '미분석'}점입니다. 이는 고장확률이 아니므로 침수 영향 가능 설비의 실제 상태를 확인해야 합니다."
+
+    if "지하" in text or "전기" in text or "기계" in text:
+        return "건물 내부 전기·기계설비 위치와 방수 상태 데이터가 없어 영향 여부를 계산할 수 없습니다. 침수 노출이 커질 경우를 대비해 위치와 차수 상태를 현장에서 확인해야 합니다."
+
+    active = [
+        node.get("label") for node in nodes.values() if node.get("status") in {"ACTIVE", "WATCH"} and node.get("label")
+    ]
+    if active:
+        return f"현재 분석에서 {', '.join(active[:3])} 항목이 관찰 또는 주의 상태로 선별되어 이 조치를 권고했습니다."
+    if missing:
+        return (
+            f"{', '.join(dict.fromkeys(missing[:3]))} 데이터가 없어 위험을 확정할 수 없으므로 우선 확인이 필요합니다."
+        )
+    return "현재 DB의 분석 결과와 점검 우선순위를 바탕으로 선택했습니다."
+
+
 def build_report_payload(
     db: Session, report_type: str, scope_type: str, scope_value: str | None, reference_date: date | None = None
 ) -> dict:
@@ -232,7 +281,7 @@ def build_report_payload(
         {
             "priority": i + 1,
             "text": x,
-            "reason": "활성 Cascade Node 및 실제 Feature 근거",
+            "reason": _recommendation_reason(x, cascade, detail),
             "evidence": cascade.get("paths", []),
         }
         for i, x in enumerate(priorities)
