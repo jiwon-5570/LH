@@ -138,6 +138,7 @@ def show_resilience_detail(complex_id: str):
     flood_features, flood_feature_error = get(
         f"/api/v1/seoul/complexes/{complex_id}/flood-features"
     )
+    hydrology, hydrology_error = get(f"/api/v1/seoul/complexes/{complex_id}/hydrology")
     resilience = assessments.get("resilience") or {}
     confidence = assessments.get("data_confidence") or {}
     st.subheader(detail.get("complex_name", complex_id))
@@ -220,7 +221,7 @@ def show_resilience_detail(complex_id: str):
             elif result.get("scenario_score") is None: st.warning("변경 Feature만 저장했습니다. 검증된 Flood ML이 없어 Scenario Score는 NOT_READY입니다.")
             else: st.metric("Scenario vulnerability index", f"{result['scenario_score']:.1f}점", f"{result['scenario_score']-result['base_score']:+.1f}점")
     with tabs[6]:
-        if flood_feature_error or not flood_features:
+        if flood_feature_error or hydrology_error or not flood_features or not hydrology:
             st.info("통합 수문 Feature가 아직 생성되지 않았습니다. build_seoul_hydrology.py를 실행하세요.")
         else:
             statuses = flood_features.get("dataset_statuses", {})
@@ -228,13 +229,32 @@ def show_resilience_detail(complex_id: str):
                 flood_features.get("source_metadata", {}).get("historical_flood_evidence", {})
             )
             st.caption("실제 적재 데이터만 표시합니다. 미확보 데이터는 BLOCKED_BY_DATA로 유지됩니다.")
+            labels = {
+                "seoul_flood_trace": "과거 침수흔적",
+                "seoul_flood_forecast_geometry": "풍수해 침수예상도",
+                "seoul_rain_gauge_locations": "강우량계 위치",
+                "seoul_rain_pump_stations": "빗물펌프장 공간",
+                "seoul_pump_station_attributes": "배수펌프장 속성",
+                "seoul_river_levels": "하천 수위",
+                "seoul_rainfall_historical": "과거 강우",
+            }
             st.dataframe(
                 pd.DataFrame(
-                    [{"데이터셋": key, "상태": value} for key, value in statuses.items()]
+                    [
+                        {
+                            "데이터셋": labels.get(key, key),
+                            "상태": value,
+                            "레코드": (flood_features.get("source_metadata", {}).get(key) or {}).get("record_count"),
+                            "차단 사유": (flood_features.get("source_metadata", {}).get(key) or {}).get("blocking_reason"),
+                        }
+                        for key, value in statuses.items() if key in labels
+                    ]
                 ),
                 hide_index=True,
                 width="stretch",
             )
+            rain_station = (hydrology.get("rainfall") or {}).get("station") or {}
+            river_station = (hydrology.get("river") or {}).get("station") or {}
             st.json({
                 "과거 침수": {
                     "100m 건수": flood_features.get("historical_flood_count_100m"),
@@ -255,6 +275,19 @@ def show_resilience_detail(complex_id: str):
                     "1km 개수": flood_features.get("pump_station_count_1km"),
                     "2km 개수": flood_features.get("pump_station_count_2km"),
                     "1km 총 용량": flood_features.get("nearby_total_pump_capacity_1km"),
+                },
+                "강우 관측소": {
+                    "관측소 ID": rain_station.get("station_id"),
+                    "관측소명": rain_station.get("station_name"),
+                    "거리(m)": rain_station.get("distance_m"),
+                    "매칭 방식": rain_station.get("match_method"),
+                },
+                "하천 관측소": {
+                    "관측소 ID": river_station.get("station_id"),
+                    "관측소명": river_station.get("station_name"),
+                    "거리(m)": river_station.get("distance_m"),
+                    "매칭 방식": river_station.get("match_method"),
+                    "안내": None if river_station.get("station_id") else "관측값은 확보되었으나 관측소 좌표가 없어 단지와 공간 연결할 수 없습니다.",
                 },
                 "처리 시각": flood_features.get("processed_at"),
                 "데이터 버전": flood_features.get("data_version"),

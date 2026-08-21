@@ -41,14 +41,25 @@ def _normalize_name(value: str) -> str:
 
 def _rename_aliases(frame: pd.DataFrame, spec: DatasetSpec) -> pd.DataFrame:
     normalized = {_normalize_name(column): column for column in frame.columns}
-    rename: dict[str, str] = {}
+    result = frame.copy()
     for canonical, aliases in spec.aliases.items():
+        candidates: list[str] = []
         for alias in aliases:
             original = normalized.get(_normalize_name(alias))
-            if original is not None:
-                rename[original] = canonical
-                break
-    return frame.rename(columns=rename)
+            if original is not None and original not in candidates:
+                candidates.append(original)
+        if not candidates:
+            continue
+        if canonical not in result.columns:
+            result = result.rename(columns={candidates.pop(0): canonical})
+        # Official APIs sometimes return a blank preferred field plus a populated
+        # legacy alias. Coalesce exact aliases without discarding provenance cols.
+        for candidate in candidates:
+            if candidate == canonical or candidate not in result.columns:
+                continue
+            missing = result[canonical].isna() | result[canonical].astype(str).str.strip().eq("")
+            result.loc[missing, canonical] = result.loc[missing, candidate]
+    return result
 
 
 def _spatialize(frame: pd.DataFrame, spec: DatasetSpec) -> pd.DataFrame:

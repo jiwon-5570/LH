@@ -65,3 +65,15 @@ def test_cascade_api_returns_evidence_graph_contract():
         assert body["method_type"] == "evidence_graph"
         assert body["method_version"] == "cascade-v1"
         assert all("evidence" in node and "missing_evidence" in node for node in body["nodes"])
+
+
+def test_hydrology_endpoint_is_honest_when_feature_build_is_missing():
+    now = datetime.now(UTC)
+    with TestClient(app) as client:
+        with SessionLocal() as db:
+            db.merge(Complex(complex_id="hydrology-api",complex_name="검증단지",address="서울특별시",latitude=None,longitude=None,source_name="test",source_url=None,collected_at=now,observed_at=None,data_version="test",validation_status="valid",collection_run_id="test"))
+            db.merge(SeoulComplexProfile(complex_id="hydrology-api",complex_name="검증단지",address="서울특별시",normalized_address="서울특별시",latitude=None,longitude=None,district=None,household_count=None,building_count=None,completion_date=None,building_age_years=None,kapt_code=None,analysis_eligible=False,eligibility_reason="좌표 미확보",validation_status="ADDRESS_ONLY",source_name="test",data_version="test",updated_at=now))
+            db.commit()
+        response = client.get("/api/v1/seoul/complexes/hydrology-api/hydrology")
+        assert response.status_code == 200
+        assert response.json()["status"] == "NOT_READY"

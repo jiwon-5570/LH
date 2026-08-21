@@ -918,6 +918,22 @@
         "longitude": [
           "longitude",
           "LON"
+        ],
+        "embankment_height": [
+          "embankment_height",
+          "EBM_HGT"
+        ],
+        "planned_flood_level": [
+          "planned_flood_level",
+          "PLAN_FLDE"
+        ],
+        "riverbed_elevation": [
+          "riverbed_elevation",
+          "RBH"
+        ],
+        "control_level": [
+          "control_level",
+          "CNTRL_WATL"
         ]
       }
     }

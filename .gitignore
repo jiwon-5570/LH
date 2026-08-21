@@ -9,6 +9,7 @@ __pycache__/
 .test-tmp*/
 .*-tmp/
 .pytest_tmp*/
+.pytest_*/
 .rain-gauge*-test*/
 .runtime-*.log
 .streamlit/secrets.toml

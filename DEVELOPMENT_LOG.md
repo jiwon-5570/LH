@@ -1,5 +1,14 @@
 # 개발 기록
 
+## 2026-08-21 — 서울 수문 7종 완전연결 감사
+
+- processed 산출물을 Parquet row count, Geometry, CRS, 최신 관측시각, 버전으로 검사하도록 개선
+- 단지 95개를 실제 최근접 강우량계와 metric CRS로 연결하고 좌표 미확보 30개에는 공간관계를 생성하지 않음
+- 현재 강우는 station ID exact match 우선, 자치구 fallback은 `PARTIAL`로 명시
+- 누적 강우는 관측 커버리지 80% 미만이면 `None/INSUFFICIENT`; 6시간 과거 분포 추가
+- 펌프 용량은 검증된 동일 단위가 없으면 합산하지 않으며 하천 좌표 부재는 `PARTIAL_NO_LOCATION`으로 분리
+- 단지 통합 API `/api/v1/seoul/complexes/{complex_id}/hydrology`와 재현 가능한 QA 명령 추가
+
 ## 2026-08-12 — CI/Ground Truth/DEM 강화
 
 - CI 문제 원인: GitHub Actions Ubuntu의 `pytest` 실행 파일에서 저장소 루트가 import path에 없어 `backend` 모듈 수집 5건 실패

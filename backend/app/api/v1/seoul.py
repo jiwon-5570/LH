@@ -215,6 +215,46 @@ def flood_features(complex_id: str, db: Db):
     return _flood_feature(complex_id, None, db)
 
 
+@router.get("/complexes/{complex_id}/hydrology")
+def hydrology(complex_id: str, db: Db):
+    """Compact, evidence-only hydrology view reused by UI, scenarios and reports."""
+    profile = db.get(SeoulComplexProfile, complex_id)
+    if not profile:
+        raise HTTPException(404, "서울 분석 대상 단지가 아닙니다")
+    item = db.get(FloodSpatialFeature, complex_id)
+    if item is None:
+        return {
+            "complex_id": complex_id,
+            "status": "NOT_READY",
+            "reason": "flood_spatial_features has not been built",
+        }
+    metadata = item.source_metadata or {}
+    return {
+        "complex_id": complex_id,
+        "analysis_eligibility": {
+            "profile_available": True,
+            "spatial_analysis_available": profile.latitude is not None and profile.longitude is not None,
+            "hydrology_analysis_available": item.data_quality_status not in {"INSUFFICIENT", "FAILED"},
+        },
+        "historical_flood": feature_payload(item, "flood-history"),
+        "expected_flood": feature_payload(item, "flood-forecast"),
+        "rainfall": {
+            **feature_payload(item, "rainfall"),
+            "station": metadata.get("rain_station_match", {}),
+        },
+        "drainage": feature_payload(item, "drainage"),
+        "river": {
+            **feature_payload(item, "river"),
+            "station": metadata.get("river_station_match", {}),
+        },
+        "dataset_statuses": item.dataset_statuses,
+        "source_metadata": metadata,
+        "data_quality_status": item.data_quality_status,
+        "data_version": item.data_version,
+        "processed_at": item.processed_at,
+    }
+
+
 @router.get("/complexes/{complex_id}/cascade")
 def cascade(complex_id: str, db: Db):
     try:

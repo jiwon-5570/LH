@@ -52,7 +52,9 @@ Day 1 구조·정직성 게이트, Day 2 DB/API, Day 3~6 실제 수집·매칭, 
 - [x] Rain-pump 500m/1km/2km proximity features
 - [x] Compact `flood_spatial_features` DB table
 - [x] Six FastAPI detail endpoints and Streamlit evidence tab
-- [ ] Flood forecast, rain-gauge location, pump attributes, river levels: `BLOCKED_BY_DATA`
+- [x] Rain-gauge location and pump attributes: processed/API/feature 연결
+- [ ] Flood forecast: API 속성 2,094건, Geometry 부재로 `PARTIAL_NO_GEOMETRY`
+- [ ] River levels: 관측 22건, 관측소 좌표 부재로 `PARTIAL_NO_LOCATION`
 - [ ] Exact Seoul boundary, 100m grid, negative-sample policy, spatial ML split: `NOT_READY`
 
 ## Realtime / Scenario dashboard (2026-08-19)

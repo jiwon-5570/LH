@@ -455,10 +455,11 @@ pytest
 
 운영 Dataset ID는 `seoul_flood_trace`, `seoul_flood_forecast_geometry`, `seoul_rain_gauge_locations`, `seoul_rain_pump_stations`, `seoul_pump_station_attributes`, `seoul_river_levels`, `seoul_rainfall_historical`로 고정했습니다.
 
-현재 실제 원본과 연결된 것은 침수흔적도(2020, 2022~2025), 빗물펌프장 공간정보, 과거 강우(2021~2024)입니다. 나머지 예상침수도, 강우계 위치, 펌프 속성, 하천수위는 저장소에서 실제 원본/API 캐시가 발견되지 않아 `BLOCKED_BY_DATA`입니다. 없는 값은 0이나 임의 좌표로 대체하지 않습니다.
+2026-08-21 로컬 검증 기준으로 침수흔적도 30,138건, 강우량계 29개, 빗물펌프장 118개, 배수펌프장 속성 96건, 하천수위 22건, 과거 강우 9,349,919건이 processed 계층과 단지 Feature에 연결됩니다. 풍수해 침수예상도 API 속성은 2,094건이나 Geometry가 없어 `PARTIAL_NO_GEOMETRY`, 하천수위는 관측소 좌표가 없어 `PARTIAL_NO_LOCATION`입니다. 없는 값은 0이나 임의 좌표·임의 공간관계로 대체하지 않습니다.
 
 ```powershell
 .\.venv\Scripts\python.exe scripts\build_seoul_hydrology.py
+.\.venv\Scripts\python.exe -m scripts.audit_seoul_hydrology
 .\.venv\Scripts\python.exe scripts\build_seoul_resilience.py
 ```
 
@@ -491,7 +492,7 @@ API URL은 서울 열린데이터광장 상세 페이지의 실제 서비스명�
 
 최근 성공 파일이 설정 간격 이내면 재수집을 건너뛰어 디스크 증가와 API 호출을 줄입니다. 즉시 강제 갱신하려면 명령 끝에 `--force`를 붙입니다.
 
-설정 및 적재 상태는 `GET /api/v1/seoul/hydrology-sources`에서 키 값을 노출하지 않고 확인할 수 있습니다. `floodingDs`는 실제 검증 결과 2,094개의 단계 속성을 반환하지만 Geometry는 반환하지 않으므로 `PARTIAL_NO_GEOMETRY`로 관리하며, 공간파일과 `space_id`로 결합되기 전에는 침수예상 면적비를 계산하지 않습니다.
+설정 및 적재 상태는 `GET /api/v1/seoul/hydrology-sources`에서 키 값을 노출하지 않고 확인할 수 있습니다. 이 응답은 최신 canonical snapshot의 레코드 수, CRS, 최신 관측시각, 데이터 버전, 품질상태와 차단 사유를 제공합니다. 단지별 통합 결과는 `GET /api/v1/seoul/complexes/{complex_id}/hydrology`에서 조회합니다. `floodingDs`는 실제 검증 결과 2,094개의 단계 속성을 반환하지만 Geometry는 반환하지 않으므로 `PARTIAL_NO_GEOMETRY`로 관리하며, 공간파일과 `space_id`로 결합되기 전에는 침수예상 면적비를 계산하지 않습니다.
 
 ## 실시간 모드와 시나리오 모드
 

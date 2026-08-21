@@ -168,6 +168,6 @@ GET /api/v1/data-sources/{dataset_id}/records
 
 원본은 `data/incoming/<dataset_id>/`에 두고 `incoming → raw → staging → processed → quarantine` 단계를 사용합니다. 공간 분석은 EPSG:5179, 지도 출력은 EPSG:4326을 사용합니다. 강우 시각은 Asia/Seoul로 해석한 뒤 UTC timezone-aware 값으로 저장합니다. 원본은 수정하지 않고 `source_file`, `data_version`, `processed_at`, `validation_status`를 보존합니다.
 
-`python scripts/build_seoul_hydrology.py`는 침수흔적을 표준화·중복 제거하고 단지별 통합 Feature를 재생성합니다. 미확보 데이터셋은 수집 실행 기록에 `blocked_by_data`로 남습니다.
+`python -m scripts.build_seoul_hydrology`는 침수흔적을 표준화·중복 제거하고 단지별 통합 Feature를 재생성합니다. `python -m scripts.audit_seoul_hydrology`는 7종의 최신 레코드 수·CRS·시각·버전과 단지 연결 수를 JSON으로 출력합니다. 미확보 데이터는 `BLOCKED_BY_DATA`, 속성만 있는 공간자료는 `PARTIAL_NO_GEOMETRY`, 관측소 좌표가 없는 하천자료는 `PARTIAL_NO_LOCATION`으로 남습니다.
 
 API 수집은 `python -m scripts.collect_seoul_hydrology_apis`를 사용합니다. 설정되지 않은 API는 `BLOCKED_BY_CONFIGURATION`, 인증·schema 오류는 `FAILED`, Geometry 없는 공간 속성 API는 적재 후 `PARTIAL_NO_GEOMETRY`로 구분합니다. 실패한 API 때문에 다른 API의 진단 결과가 사라지지 않습니다.

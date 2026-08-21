@@ -45,13 +45,13 @@ def main() -> None:
                 source_name=dataset_id,
                 started_at=now,
                 finished_at=now,
-                status="complete" if details["status"] == "AVAILABLE" else "blocked_by_data",
+                status="complete" if details["status"] == "AVAILABLE" else "partial",
                 raw_path=str(ROOT / "data/raw" / dataset_id),
                 processed_path=str(ROOT / "data/processed" / dataset_id),
-                record_count=details["file_count"],
-                valid_count=details["file_count"],
+                record_count=details["record_count"],
+                valid_count=details["record_count"],
                 quarantined_count=0,
-                failure_reason=None if details["status"] == "AVAILABLE" else "actual source file/API cache not found",
+                failure_reason=details.get("blocking_reason"),
                 data_version=details["data_version"],
             ))
         db.commit()

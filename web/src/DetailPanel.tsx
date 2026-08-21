@@ -7,6 +7,7 @@ const tabs = ["종합 근거", "공식 침수이력", "배수 인프라", "연�
 export function DetailPanel({ complex, onClose }: { complex: Complex; onClose: () => void }) {
   const [detail, setDetail] = useState<Detail | null>(null);
   const [flood, setFlood] = useState<any>(null);
+  const [hydrology, setHydrology] = useState<any>(null);
   const [cascade, setCascade] = useState<any>(null);
   const [aiText, setAiText] = useState("");
   const [aiState, setAiState] = useState<"loading" | "claude" | "fallback">("loading");
@@ -16,13 +17,14 @@ export function DetailPanel({ complex, onClose }: { complex: Complex; onClose: (
   useEffect(() => {
     const scenarioId=sessionStorage.getItem("active_scenario_id");
     const cascadeUrl=scenarioId?`/api/v1/seoul/stress-tests/${encodeURIComponent(`${scenarioId}:${complex.complex_id}`)}/cascade`:`/api/v1/seoul/complexes/${complex.complex_id}/cascade`;
-    setError(""); setDetail(null); setFlood(null); setCascade(null); setAiText(""); setAiState("loading"); setTab(0);
+    setError(""); setDetail(null); setFlood(null); setHydrology(null); setCascade(null); setAiText(""); setAiState("loading"); setTab(0);
     Promise.all([
       api<Detail>(`/api/v1/seoul/complexes/${complex.complex_id}`),
       api<any>(`/api/v1/seoul/complexes/${complex.complex_id}/flood-features`),
+      api<any>(`/api/v1/seoul/complexes/${complex.complex_id}/hydrology`),
       api<any>(cascadeUrl).catch(()=>api<any>(`/api/v1/seoul/complexes/${complex.complex_id}/cascade`))
-    ]).then(([d, f, c]) => {
-      setDetail(d); setFlood(f); setCascade(c);
+    ]).then(([d, f, h, c]) => {
+      setDetail(d); setFlood(f); setHydrology(h); setCascade(c);
       const verifiedNarrative = buildVerifiedNarrative(d, f);
       setAiText(verifiedNarrative);
       setAiState("fallback");
@@ -67,7 +69,7 @@ export function DetailPanel({ complex, onClose }: { complex: Complex; onClose: (
         {tab === 3 && <CascadeView value={cascade}/>}
         {tab === 4 && <ReadableEvidence value={facility} missing="이 단지와 연결된 승강기 검사·시정권고 근거가 충분하지 않습니다." />}
         {tab === 5 && <ReadableEvidence value={confidence} missing="데이터 품질 평가 결과가 아직 생성되지 않았습니다." />}
-        {tab === 6 && <ReadableEvidence value={flood} missing="통합 수문 Feature가 아직 생성되지 않았습니다." />}
+        {tab === 6 && <ReadableEvidence value={hydrology} missing="통합 수문 Feature가 아직 생성되지 않았습니다." />}
       </div>
     </>}
   </section>;

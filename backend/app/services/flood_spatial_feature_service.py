@@ -2,11 +2,13 @@ from __future__ import annotations
 
 import hashlib
 import os
+import re
 from datetime import UTC, datetime
 from pathlib import Path
 
 import geopandas as gpd
 import pandas as pd
+import pyarrow.parquet as pq
 from shapely.geometry import Point
 from sqlalchemy import delete
 from sqlalchemy.orm import Session
@@ -65,6 +67,68 @@ def _version(paths: list[Path]) -> str:
         digest.update(str(path.stat().st_size).encode())
         digest.update(str(path.stat().st_mtime_ns).encode())
     return digest.hexdigest()
+
+
+def _dataset_profile(paths: list[Path], spatial_expected: bool) -> dict:
+    """Inspect processed outputs without loading large geometry tables in full."""
+    record_count = 0
+    columns: set[str] = set()
+    latest_observation = None
+    geometry_available = False
+    geometry_crs = None
+    readable = 0
+    errors: list[str] = []
+    for path in paths:
+        try:
+            metadata = pq.ParquetFile(path).metadata
+            record_count += metadata.num_rows
+            names = set(metadata.schema.names)
+            columns.update(names)
+            readable += 1
+            geometry_available = geometry_available or "geometry" in names
+            if "geometry" in names and geometry_crs is None:
+                frame = gpd.read_parquet(path, columns=["geometry"])
+                geometry_crs = None if frame.crs is None else frame.crs.to_string()
+            for candidate in ("observed_at", "event_date", "processed_at", "collected_at"):
+                if candidate in names:
+                    values = pd.read_parquet(path, columns=[candidate])[candidate]
+                    parsed = pd.to_datetime(values, errors="coerce", utc=True).max()
+                    if pd.notna(parsed) and (latest_observation is None or parsed > latest_observation):
+                        latest_observation = parsed
+                    break
+        except Exception as exc:  # noqa: BLE001 - surfaced as dataset status, never hidden
+            errors.append(f"{path.name}: {exc}")
+    if not paths:
+        status = "BLOCKED_BY_DATA"
+        reason = "processed dataset not found"
+    elif readable == 0:
+        status = "FAILED"
+        reason = errors[0] if errors else "processed dataset unreadable"
+    elif spatial_expected and not geometry_available:
+        status = "PARTIAL_NO_GEOMETRY"
+        reason = "processed attributes are available but geometry is absent"
+    elif spatial_expected and geometry_crs is None:
+        status = "PARTIAL"
+        reason = "geometry CRS is missing"
+    elif errors:
+        status = "PARTIAL"
+        reason = f"{len(errors)} processed file(s) could not be inspected"
+    else:
+        status = "AVAILABLE"
+        reason = None
+    return {
+        "status": status,
+        "file_count": len(paths),
+        "record_count": record_count,
+        "data_version": _version(paths) if paths else None,
+        "storage": "GeoParquet/Parquet" if paths else None,
+        "geometry_available": geometry_available if spatial_expected else None,
+        "crs": geometry_crs if spatial_expected else None,
+        "latest_observation": None if latest_observation is None else latest_observation.isoformat(),
+        "columns": sorted(columns),
+        "quality_status": status,
+        "blocking_reason": reason,
+    }
 
 
 def _load_geodata(paths: list[Path]) -> gpd.GeoDataFrame | None:
@@ -146,11 +210,47 @@ def _pump_capacity(pumps: gpd.GeoDataFrame | None, attributes: pd.DataFrame | No
         merged = merged.merge(attrs, on="_join", how="left")
     else:
         return {"nearby_total_pump_capacity_1km": None}
-    if "pump_capacity" not in merged:
+    if "pump_capacity" not in merged or "capacity_unit" not in merged:
         return {"nearby_total_pump_capacity_1km": None}
     nearby = merged.loc[merged.geometry.distance(point) <= 1000]
-    values = pd.to_numeric(nearby["pump_capacity"], errors="coerce").dropna()
+    units = nearby["capacity_unit"].dropna().astype(str).str.strip().replace("", pd.NA).dropna().unique()
+    if len(units) != 1:
+        return {"nearby_total_pump_capacity_1km": None}
+    verified = nearby.get("capacity_status", pd.Series(index=nearby.index, dtype="object")).eq("UNIT_VERIFIED")
+    values = pd.to_numeric(nearby.loc[verified, "pump_capacity"], errors="coerce").dropna()
     return {"nearby_total_pump_capacity_1km": None if values.empty else round(float(values.sum()), 3)}
+
+
+def _facility_key(value: object) -> str:
+    return re.sub(r"[^0-9a-z가-힣]", "", str(value or "").lower())
+
+
+def pump_attribute_match_summary(
+    pumps: pd.DataFrame | None, attributes: pd.DataFrame | None
+) -> dict:
+    """Report only deterministic ID/name matches; fuzzy candidates stay review-required."""
+    if pumps is None or attributes is None or pumps.empty or attributes.empty:
+        return {"status": "BLOCKED_BY_DATA", "id_exact": 0, "name_exact": 0, "review_required": 0}
+    ids = set(attributes.get("pump_station_id", pd.Series(dtype="object")).dropna().astype(str).str.replace(r"\.0$", "", regex=True))
+    names = set(attributes.get("pump_station_name", pd.Series(dtype="object")).map(_facility_key)) - {""}
+    id_exact = name_exact = review = 0
+    for row in pumps.to_dict("records"):
+        pump_id = re.sub(r"\.0$", "", str(row.get("pump_id") or ""))
+        name = _facility_key(row.get("pump_name"))
+        if pump_id and pump_id in ids:
+            id_exact += 1
+        elif name and name in names:
+            name_exact += 1
+        else:
+            review += 1
+    return {
+        "status": "AVAILABLE" if review == 0 else "PARTIAL",
+        "id_exact": id_exact,
+        "name_exact_normalized": name_exact,
+        "review_required": review,
+        "spatial_facility_count": len(pumps),
+        "attribute_record_count": len(attributes),
+    }
 
 
 def dataset_availability(root: Path = ROOT) -> dict[str, dict]:
@@ -167,9 +267,13 @@ def dataset_availability(root: Path = ROOT) -> dict[str, dict]:
     }
     for dataset_id in CANONICAL_DATASETS:
         if dataset_id not in present:
-            present[dataset_id] = _files(
+            candidates = _files(
                 root / "data/processed" / dataset_id, "**/*.parquet"
             )
+            # API/file collectors keep immutable run history. Availability and
+            # record_count describe the latest canonical snapshot, not the sum
+            # of duplicate historical exports.
+            present[dataset_id] = candidates[-1:] if candidates else []
     result: dict[str, dict] = {}
     for dataset_id in CANONICAL_DATASETS:
         paths = present.get(dataset_id, [])
@@ -177,19 +281,15 @@ def dataset_availability(root: Path = ROOT) -> dict[str, dict]:
             "seoul_flood_trace", "seoul_flood_forecast_geometry",
             "seoul_rain_gauge_locations", "seoul_rain_pump_stations",
         }
-        geometry_available = False
-        if paths and spatial_expected:
-            geometry_available = any("geometry" in pd.read_parquet(path).columns for path in paths)
-        status = "AVAILABLE" if paths else "BLOCKED_BY_DATA"
-        if paths and spatial_expected and not geometry_available:
-            status = "PARTIAL_NO_GEOMETRY"
-        result[dataset_id] = {
-            "status": status,
-            "file_count": len(paths),
-            "data_version": _version(paths) if paths else None,
-            "storage": "GeoParquet/Parquet" if paths else None,
-            "geometry_available": geometry_available if spatial_expected else None,
-        }
+        result[dataset_id] = _dataset_profile(paths, spatial_expected)
+        if dataset_id == "seoul_river_levels" and paths:
+            columns = set(result[dataset_id]["columns"])
+            if "geometry" not in columns and not {"latitude", "longitude"}.issubset(columns):
+                result[dataset_id]["status"] = "PARTIAL_NO_LOCATION"
+                result[dataset_id]["quality_status"] = "PARTIAL_NO_LOCATION"
+                result[dataset_id]["blocking_reason"] = (
+                    "river observations are available but station coordinates are absent"
+                )
     return result
 
 
@@ -206,6 +306,7 @@ def build_flood_spatial_features(db: Session, root: Path = ROOT) -> dict:
     river_stations = _load_geodata(_files(root / "data/processed/seoul_river_levels", "**/*.parquet")[-1:])
     attribute_paths = _files(root / "data/processed/seoul_pump_station_attributes", "**/*.parquet")[-1:]
     pump_attributes = pd.concat([pd.read_parquet(path) for path in attribute_paths], ignore_index=True) if attribute_paths else None
+    pump_match = pump_attribute_match_summary(pumps, pump_attributes)
     now = datetime.now(UTC)
     version = _version(flood_paths + pump_paths)
     db.execute(delete(FloodSpatialFeature))
@@ -229,6 +330,19 @@ def build_flood_spatial_features(db: Session, root: Path = ROOT) -> dict:
         available_count = sum(value == "AVAILABLE" for key, value in statuses.items() if key != "complex_coordinates")
         quality = "COMPLETE" if available_count == len(CANONICAL_DATASETS) else "PARTIAL"
         feature_metadata = {**availability}
+        feature_metadata["pump_attribute_match"] = pump_match
+        feature_metadata["rain_station_match"] = {
+            "station_id": rain_station.get("id"),
+            "station_name": rain_station.get("name"),
+            "match_method": "spatial_nearest" if rain_station.get("id") is not None else None,
+            "distance_m": rain_station.get("distance_m"),
+        }
+        feature_metadata["river_station_match"] = {
+            "station_id": river_station.get("id"),
+            "station_name": river_station.get("name"),
+            "match_method": "spatial_nearest" if river_station.get("id") is not None else None,
+            "distance_m": river_station.get("distance_m"),
+        }
         feature_metadata["historical_flood_evidence"] = {
             "nearest_trace_distance_m": history.get("nearest_trace_distance_m"),
             "hit_years_point": history.get("hit_years_point", []),
